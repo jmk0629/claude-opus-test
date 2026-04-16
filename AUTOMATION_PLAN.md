@@ -156,6 +156,18 @@ commands/
 4. **Week 4 (백엔드 인수 시점)**: B1 `ingest-medipanda-backend` + B2 `playbook-status` — 인수 디데이에 맞춰.
 5. **그 이후**: C2, D1~D3는 수요 생기면.
 
+### 진행 상태 (2026-04-17 기준)
+
+| 항목 | 상태 | PR | 리포트 |
+|------|------|----|-------|
+| A3 `/audit-menu-routes` | ✅ merged | #2 | `reports/audit-menu-routes-20260416.md` |
+| A2 `/verify-frontend-contract` | ✅ merged | #4 | `reports/verify-frontend-contract-20260416.md` |
+| A1 `/sync-api-docs` | ✅ merged | #3 | `reports/sync-api-docs-20260416.md` |
+| C1 `/pr-context` | ✅ merged | #6 | `reports/pr-context-20260417.md` |
+| B2 `/playbook-status` | 🚧 WIP | — | — |
+| B1 `/ingest-medipanda-backend` | ⬜ 백엔드 소스 대기 | — | — |
+| C2 `/ui-smoke` | ⬜ 후순위 | — | — |
+
 ---
 
 ## 6. 성공 지표 (운영 후 측정)
@@ -179,5 +191,5 @@ commands/
 
 ## 다음 단계 제안
 
-- 이 계획에서 **P0 중 하나를 골라 실제 에이전트+커맨드 파일로 먼저 구현**해보는 게 검증에 제일 빠름.
-- 어떤 걸 먼저 만들까요? (추천: A3 `audit-menu-routes` — 작고 안전함)
+- P0/P2 1라운드 완료(A1/A2/A3/C1). 다음은 **B2 `/playbook-status`** — 백엔드 인수 디데이 전 체크리스트 자동화.
+- B1 `/ingest-medipanda-backend`는 실제 소스 수령 후 착수.
