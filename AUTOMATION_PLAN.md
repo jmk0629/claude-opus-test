@@ -164,9 +164,9 @@ commands/
 | A2 `/verify-frontend-contract` | ✅ merged | #4 | `reports/verify-frontend-contract-20260416.md` |
 | A1 `/sync-api-docs` | ✅ merged | #3 | `reports/sync-api-docs-20260416.md` |
 | C1 `/pr-context` | ✅ merged | #6 | `reports/pr-context-20260417.md` |
-| B2 `/playbook-status` | 🚧 WIP | — | — |
+| B2 `/playbook-status` | ✅ merged | #7 | `reports/playbook-status-20260417.md` |
+| C2 `/ui-smoke` | ✅ main 직접 커밋 | — | `reports/ui-smoke-20260417.md` + `reports/ui-smoke/user-02-home.spec.ts` |
 | B1 `/ingest-medipanda-backend` | ⬜ 백엔드 소스 대기 | — | — |
-| C2 `/ui-smoke` | ⬜ 후순위 | — | — |
 
 ---
 
