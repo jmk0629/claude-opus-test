@@ -3,27 +3,23 @@
 Claude Code 서브에이전트 기반 **하네스 엔지니어링(harness engineering) 실험실**.
 [medipanda-web](https://github.com/) 프론트엔드에서 반복되는 **드리프트·계약 위반·보안 구멍 탐지**를 슬래시 커맨드 한 줄로 자동화하는 것이 목표.
 
+> **산출물 한눈에 보기**: [`INDEX.md`](INDEX.md) — 지금까지 만든 agents/commands/reports 전체 색인.
+
 ---
 
 ## 구조
 
 ```
 claude-opus-test/
+├── INDEX.md                산출물 전수 색인 (먼저 읽기)
 ├── AUTOMATION_PLAN.md      전체 자동화 로드맵 (A1~C2, P0~P3)
-├── agents/                 서브에이전트 정의 (frontmatter + 지시문)
-│   ├── route-auditor.md
-│   ├── api-doc-writer.md        (feature/a1 PR)
-│   ├── impact-scanner.md        (feature/a1 PR)
-│   └── contract-checker.md      (feature/a2 PR)
-├── commands/               슬래시 커맨드 정의
-│   ├── audit-menu-routes.md
-│   ├── sync-api-docs.md         (feature/a1 PR)
-│   └── verify-frontend-contract.md  (feature/a2 PR)
+├── agents/                 서브에이전트 정의 (9개)
+├── commands/               슬래시 커맨드 정의 (6개: A1/A2/A3/B2/C1/C2)
 ├── reports/                실제 실행 결과 아카이브
+│   └── ui-smoke/           Playwright spec 초안 23개 + _fixtures.ts
+├── tsconfig.ui-smoke.json  spec strict tsc 게이트 (`npm run typecheck:ui-smoke`)
 ├── test/                   튜토리얼 4인방(planner/developer/tester/reviewer)
-└── .github/
-    ├── workflows/ci.yml    agent/command frontmatter 검증
-    └── PULL_REQUEST_TEMPLATE.md
+└── .github/PULL_REQUEST_TEMPLATE.md
 ```
 
 ---
@@ -32,15 +28,15 @@ claude-opus-test/
 
 | # | 이름 | 목적 | 상태 |
 |---|------|------|------|
-| **A3** | `/audit-menu-routes` | menus ↔ routes ↔ guards 정합성 (보안 구멍 탐지) | **merged** |
-| **A1** | `/sync-api-docs` | `backend.ts` ↔ API 문서 드리프트 탐지 | PR open |
-| **A2** | `/verify-frontend-contract` | orphan call / arity mismatch / axios bypass / hardcoded URL | PR open |
-| B1 | `/ingest-medipanda-backend` | 외주 백엔드 인수 시 `/ingest-backend` 래퍼 + cross-ref | 예정 |
-| B2 | `/playbook-status` | `INTERNALIZATION_PLAYBOOK.md` 진행도 자동 체크 | 예정 |
-| C1 | `/pr-context` | PR 변경 파일 → 영향 화면/API/DB 지도 | 예정 |
-| C2 | `/ui-smoke` | 메뉴 문서 기반 Playwright 시나리오 생성 | 예정 |
+| **A1** | `/sync-api-docs` | `backend.ts` ↔ API 문서 드리프트 탐지 | ✅ main |
+| **A2** | `/verify-frontend-contract` | orphan call / arity mismatch / axios bypass / hardcoded URL | ✅ main |
+| **A3** | `/audit-menu-routes` | menus ↔ routes ↔ guards 정합성 (보안 구멍 탐지) | ✅ main |
+| **B2** | `/playbook-status` | `INTERNALIZATION_PLAYBOOK.md` 진행도 자동 체크 | ✅ main |
+| **C1** | `/pr-context` | PR 변경 파일 → 영향 화면/API/DB 지도 | ✅ main |
+| **C2** | `/ui-smoke` | 메뉴 문서 기반 Playwright 시나리오 (user 11 + admin 12 배치 완료, tsc 게이트 포함) | ✅ main |
+| B1 | `/ingest-medipanda-backend` | 외주 백엔드 인수 시 `/ingest-backend` 래퍼 + cross-ref | ⬜ 소스 대기 |
 
-자세한 설계·우선순위 근거는 [`AUTOMATION_PLAN.md`](AUTOMATION_PLAN.md) 참조.
+자세한 설계·우선순위 근거는 [`AUTOMATION_PLAN.md`](AUTOMATION_PLAN.md), 산출물 전수 색인은 [`INDEX.md`](INDEX.md) 참조.
 
 ---
 
