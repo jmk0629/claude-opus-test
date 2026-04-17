@@ -165,7 +165,10 @@ commands/
 | A1 `/sync-api-docs` | ✅ merged | #3 | `reports/sync-api-docs-20260416.md` |
 | C1 `/pr-context` | ✅ merged | #6 | `reports/pr-context-20260417.md` |
 | B2 `/playbook-status` | ✅ merged | #7 | `reports/playbook-status-20260417.md` |
-| C2 `/ui-smoke` | ✅ main 직접 커밋 | — | `reports/ui-smoke-20260417.md` + `reports/ui-smoke/user-02-home.spec.ts` |
+| C2 `/ui-smoke` (user 02) | ✅ main 직접 커밋 | — | `reports/ui-smoke-20260417.md` + `reports/ui-smoke/user-02-home.spec.ts` |
+| C2 `/ui-smoke user` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-user-20260417.md` (11 spec, 99 scenarios) |
+| C2 품질 가드 (tsc + 픽스처) | ✅ main 직접 커밋 | — | `reports/ui-smoke-quality-gate-20260417.md` (`tsconfig.ui-smoke.json`, `_fixtures.ts`) |
+| C2 `/ui-smoke admin` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-admin-20260417.md` (12 spec, 132 scenarios, tsc 12/12) |
 | B1 `/ingest-medipanda-backend` | ⬜ 백엔드 소스 대기 | — | — |
 
 ---
