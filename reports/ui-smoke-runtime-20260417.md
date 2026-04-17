@@ -240,3 +240,22 @@ user-10/11/01 수정 후 나머지 6개 spec 배치를 돌리는 2분 사이에 
 - 배치 전 refresh 로는 부족함. **spec 15개 이상 또는 2분+ 예상되면 중간에 재확인** 필요.
 - 장기적으론 Playwright `globalSetup` + access/refresh token 자동 교환이 해결책.
 - 단기적으론 실패 `error-context.md` 의 snapshot 에서 `link "로그인"` / `textbox "ID"` / `hero-public.svg` 중 하나라도 보이면 **spec 수정 전에 무조건 JWT 부터 refresh**.
+
+### 9.11 admin 배치 최초 기준선 — 64 passed / 1 skip / 74 failed (16.1분)
+
+user 배치 완주 직후 동일 프로토콜로 admin 배치 실행. admin-01/11 은 이미 직전 세션에서 손본 상태(그래서 실패 0). 나머지 10개 spec 에 74건 실패 분포.
+
+| Spec | 실패 | 남은 작업 힌트 |
+|------|------|----------------|
+| admin-12-admin-permission | 14 | 관리자 CRUD 플로우 + 권한분기 — user-11 패턴(폼 input[name]) 재활용 유력 |
+| admin-06-settlement-management | 12 | 3-API 합산 페이지 — user-05 combobox/columnheader 패턴 참조 |
+| admin-09-content-management | 11 | 콘텐츠(배너/A-Z/이벤트) 다중 목록 + 등록/수정 |
+| admin-10-customer-service | 7 | 공지/FAQ/1:1문의 — user-09 Typography headingPc3M 패턴 재활용 유력 |
+| admin-08-contract-management | 7 | 계약관리 |
+| admin-05-prescription-management | 6 | user-04 `route.fallback()` 패턴 재활용 가능 |
+| admin-07-medicine-picking | 5 | — |
+| admin-03-partner-management | 5 | 거래선관리 CRUD |
+| admin-02-product-management | 4 | 제품관리 목록/검색/상세 에러 |
+| admin-04-sales-agency-product | 3 | user-07 applied/endDate mock 패턴 재활용 |
+
+user 배치에서 축적한 패턴 라이브러리(route.fallback / regex URL / Typography span 스코프 / UNAUTHENTICATED_STATE / input[name] 셀렉터 / mock key 정합)가 대부분 재사용 가능할 것으로 예상. 우선순위는 고치기 쉬운 순서: admin-04 → admin-05 → admin-10 → admin-02 → admin-03 → admin-07 → admin-06 → admin-09 → admin-12 → admin-08.
