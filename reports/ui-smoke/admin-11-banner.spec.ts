@@ -20,30 +20,25 @@
  * 6. 이미지 업로드는 단일 파일 + multipart/form-data — 실제 createBanner 페이로드 구조는 backend.ts 확인 후 조정
  */
 
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import {
   BASE_URL_ADMIN,
   EMPTY_PAGE,
   pageResponse,
   api,
-  acceptNextDialog,
-  injectTestSession,
-  SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
 // 공용 헬퍼
 // ────────────────────────────────────────────────────────────────
 
-// Admin 권한 주입. cookie 기반이면 test.use({ storageState })로 교체.
-async function seedAdminSession(page: Page): Promise<void> {
-  // TODO: storageState — 실제 관리자 세션 구조를 확인 후 교체
-  await injectTestSession(page, {
-    ...SESSION_PRESETS.csoApproved,
-    role: 'ADMIN',
-    userId: 'test-admin',
-  });
-}
+// query string 이 붙는 목록 endpoint 매칭용. api() 는 trailing `**` 을 붙이지 않으므로
+// 여기서 명시적으로 정규식 사용. (/v1/banners 만 가로채고 /v1/banners/{id} 는 제외)
+const BANNERS_LIST_RE = /\/v1\/banners(\?|$)/;
+// 단건: /v1/banners/{id} — 하위 경로는 제외
+const bannerByIdRe = (id: number | string): RegExp => new RegExp(`/v1/banners/${id}(\\?|$)`);
 
 // 배너 상세 단건 응답 (수정 모드 로드용)
 function bannerDetailFixture(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
@@ -90,14 +85,13 @@ function bannerListRow(overrides: Partial<Record<string, unknown>> = {}): Record
 // ────────────────────────────────────────────────────────────────
 
 test.describe('admin/11 BANNER — 배너관리 smoke', () => {
-  test.beforeEach(async ({ page }) => {
-    await seedAdminSession(page);
-  });
+  // 세션은 admin project 의 storageState(.auth/admin.json) 로 이미 주입됨.
+  // localStorage 기반 seedAdminSession 은 cookie 세션을 덮어쓰지 못하므로 제거.
 
   // ───────────── 배너 목록 (MpAdminBannerList) ─────────────
   test.describe('배너 목록 (/admin/banners)', () => {
     test('정상 로드: 제목 + 검색 필터 + 테이블 헤더 렌더', async ({ page }) => {
-      await page.route(api('/v1/banners'), async (route: Route) => {
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -112,7 +106,8 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
       // 검색 필터 버튼
       await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
       await expect(page.getByRole('button', { name: '초기화' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '등록' })).toBeVisible();
+      // '등록' 버튼은 RouterLink 기반이라 link role
+      await expect(page.getByRole('link', { name: '등록' })).toBeVisible();
 
       // 테이블 헤더 컬럼 — 배너 전용 (노출수/클릭수/CTR)
       await expect(page.getByRole('columnheader', { name: '배너위치' })).toBeVisible();
@@ -126,7 +121,7 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
     });
 
     test('빈 상태: API 0건 응답 시 "검색 결과가 없습니다." 표시', async ({ page }) => {
-      await page.route(api('/v1/banners'), async (route: Route) => {
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -140,7 +135,7 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
     });
 
     test('목록 렌더: 배너제목 링크가 /admin/banners/:id/edit 를 가리키고 CTR 포맷 확인', async ({ page }) => {
-      await page.route(api('/v1/banners'), async (route: Route) => {
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -175,18 +170,17 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
     });
 
     test('에러 상태: 목록 API 500 실패 시 alertError 메시지 표시', async ({ page }) => {
-      await page.route(api('/v1/banners'), async (route: Route) => {
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
       });
 
-      // useMpModal.alertError — 커스텀 모달. 한글 메시지 존재 여부만 확인.
-      // TODO: verify selector — 실제 모달 role 구조에 따라 getByRole('alertdialog') 로 좁히는 것 권장
       await page.goto(`${BASE_URL_ADMIN}/banners`);
-      await expect(page.getByText('배너 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible();
+      await expectMpModal(page, '배너 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
 
     test('등록 버튼 클릭 시 /admin/banners/new 로 이동', async ({ page }) => {
-      await page.route(api('/v1/banners'), async (route: Route) => {
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -231,34 +225,28 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
     test('유효성: 배너제목 빈 상태로 저장 시 "배너제목을 입력하세요." alert', async ({ page }) => {
       await page.goto(`${BASE_URL_ADMIN}/banners/new`);
 
-      // useMpModal.alert — 현재 useMpModal 구현이 네이티브 window.alert 기반인지 커스텀 모달인지에 따라 분기
-      // TODO: verify — 커스텀 모달이면 page.getByRole('dialog').getByText(...) 로 교체
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const msg = await dialogPromise;
-      expect(msg).toContain('배너제목을 입력하세요.');
+      await expectMpModal(page, '배너제목을 입력하세요.');
+      await acceptMpModal(page);
     });
 
     test('유효성: 이미지 미선택 상태로 저장 시 "배너이미지를 선택하세요." alert', async ({ page }) => {
       await page.goto(`${BASE_URL_ADMIN}/banners/new`);
 
-      // 배너제목만 입력
-      // TODO: verify selector — 배너제목 TextField 는 name='title' + 라벨 없는 TextField
-      // getByRole('textbox') 는 전체 textbox 대상이므로 첫 번째(배너제목) 가정
+      // 배너제목 TextField 는 라벨이 없음 → 첫 번째 textbox 로 접근
       const titleInput = page.getByRole('textbox').first();
       await titleInput.fill('테스트 배너');
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const msg = await dialogPromise;
-      expect(msg).toContain('배너이미지를 선택하세요.');
+      await expectMpModal(page, '배너이미지를 선택하세요.');
+      await acceptMpModal(page);
     });
   });
 
   // ───────────── 배너 수정 (MpAdminBannerEdit, isNew=false) ─────────────
   test.describe('배너 수정 (/admin/banners/:bannerId/edit)', () => {
     test('정상 로드: 기존 배너 데이터로 폼 프리필 + 이미지 미리보기 노출', async ({ page }) => {
-      await page.route(api('/v1/banners/42'), async (route: Route) => {
+      await page.route(bannerByIdRe(42), async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
@@ -286,24 +274,25 @@ test.describe('admin/11 BANNER — 배너관리 smoke', () => {
     });
 
     test('에러 상태: 단건 조회 API 500 실패 시 alertError 메시지 표시', async ({ page }) => {
-      await page.route(api('/v1/banners/42'), async (route: Route) => {
+      await page.route(bannerByIdRe(42), async (route: Route) => {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
       });
 
       await page.goto(`${BASE_URL_ADMIN}/banners/42/edit`);
-      // TODO: verify selector — useMpModal 모달 구조에 따라 getByRole('alertdialog') 권장
-      await expect(page.getByText('배너 정보를 불러오는데 실패했습니다.')).toBeVisible();
+      await expectMpModal(page, '배너 정보를 불러오는데 실패했습니다.');
+      await acceptMpModal(page);
     });
 
     test('잘못된 파라미터: bannerId가 NaN이면 "잘못된 접근" alert 후 목록으로 이동', async ({ page }) => {
-      // /admin/banners/abc/edit 으로 접근 시 fetchDetail 내부에서 Number.isNaN 분기
-      // TODO: verify — 실제로는 해당 route 매치 여부, 그리고 useParams 가 'abc' 를 파싱하는지 확인
-      const dialogPromise = acceptNextDialog(page);
-      await page.goto(`${BASE_URL_ADMIN}/banners/abc/edit`);
-      const msg = await dialogPromise;
-      expect(msg).toContain('잘못된 접근');
+      // 목록 이동 대상 API mock (잘못된 접근 → navigate('/admin/banners'))
+      await page.route(BANNERS_LIST_RE, async (route: Route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(EMPTY_PAGE) });
+      });
 
-      // 목록으로 navigate 되는지 확인
+      await page.goto(`${BASE_URL_ADMIN}/banners/abc/edit`);
+      await expectMpModal(page, '잘못된 접근');
+      await acceptMpModal(page);
+
       await expect(page).toHaveURL(/\/admin\/banners(\?|$)/);
     });
   });

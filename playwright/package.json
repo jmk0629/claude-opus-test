@@ -7,6 +7,8 @@
   "scripts": {
     "auth:user": "playwright codegen --save-storage=.auth/user.json http://localhost:5174",
     "auth:admin": "playwright codegen --save-storage=.auth/admin.json http://localhost:5173/admin",
+    "auth:refresh:admin": "tsx refresh-auth.ts admin",
+    "auth:refresh:user": "tsx refresh-auth.ts user",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:user": "playwright test --project=user",

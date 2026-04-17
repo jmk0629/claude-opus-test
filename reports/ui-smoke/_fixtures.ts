@@ -93,8 +93,15 @@ export function autoAcceptDialogs(page: Page) {
 // ────────────────────────────────────────────────────────────────
 
 /**
- * backend.ts의 baseURL이 `/` 또는 `https://dev.api.medipanda.co.kr` 등
- * 환경에 따라 달라지므로 `**` prefix로 와일드카드 매칭.
+ * backend.ts 의 baseURL 이 `/` 또는 `https://dev.api.medipanda.co.kr` 등
+ * 환경에 따라 달라지므로 `**` prefix 와일드카드만 적용.
+ *
+ * ⚠️ 주의: query string 이 붙는 경로를 매칭하려면 호출부에서 명시적으로
+ * 트레일링 `**` 를 붙여 사용 (예: `api('/v1/members') + '**'` 또는
+ * 정확한 경로는 정규식 `/\/v1\/members(\?|$)/` 로 작성).
+ * 과거에 트레일링 `**` 를 헬퍼에서 자동 추가했다가 하위 경로
+ * (예: `/v1/members/admins/.../permissions`)까지 가로채 AdminGuard 를
+ * 깨뜨린 이슈가 있었음.
  */
 export const api = (path: string) => `**${path.startsWith('/') ? '' : '/'}${path}`;
 
@@ -115,6 +122,29 @@ export const API_V1 = {
 // ────────────────────────────────────────────────────────────────
 
 /**
+ * useMpModal 의 alert/alertError 가 MUI `<Dialog>` 로 렌더된 것을 검증.
+ *
+ * 중요: medipanda-web 의 `alert()/alertError()` 는 **native window.alert 이 아니라**
+ * MUI Dialog 다. `page.on('dialog', ...)` 방식으로는 절대 안 잡힘.
+ *
+ * 사용:
+ * ```
+ * await expectMpModal(page, '검색유형을 선택하세요.');
+ * await acceptMpModal(page);
+ * ```
+ */
+export async function expectMpModal(page: Page, text: string | RegExp, timeout = 5000): Promise<void> {
+  const dialog = page.getByRole('dialog').filter({ hasText: text });
+  await expect(dialog).toBeVisible({ timeout });
+}
+
+/** MpModal 의 "확인" 버튼을 눌러 닫음. onCancel 이 있는 confirm 은 acceptMpModal(page, '취소') 로도 가능. */
+export async function acceptMpModal(page: Page, buttonName: string | RegExp = '확인'): Promise<void> {
+  await page.getByRole('dialog').getByRole('button', { name: buttonName }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 3000 });
+}
+
+/**
  * notistack 스낵바가 특정 텍스트로 노출되는지 검증.
  *
  * notistack 기본 렌더: `div.SnackbarItem-message` 또는 `[role='alert']`.
@@ -126,25 +156,34 @@ export const API_V1 = {
  * ```
  */
 export async function expectSnackbar(page: Page, text: string | RegExp, timeout = 5000): Promise<Locator> {
-  const byRole = page.getByRole('alert').filter({ hasText: text });
-  const byClass = page.locator('.SnackbarItem-message, .notistack-MuiContent').filter({ hasText: text });
-  const any = page.locator(':is([role="alert"], .SnackbarItem-message, .notistack-MuiContent)').filter({ hasText: text });
+  // notistack 은 `.notistack-MuiContent-{variant}` (예: -error, -default) 으로 렌더.
+  // 프리픽스 매칭을 위해 `[class*="notistack-MuiContent"]` 사용.
+  // SnackbarItem-message 는 과거 버전 호환.
+  const any = page.locator(':is([role="alert"], .SnackbarItem-message, [class*="notistack-MuiContent"], .notistack-SnackbarContainer)').filter({ hasText: text });
 
-  await expect(any).toBeVisible({ timeout });
-  return byRole.or(byClass).first();
+  await expect(any.first()).toBeVisible({ timeout });
+  return any.first();
 }
 
 /**
  * MUI Select 컴포넌트(role='combobox')에서 옵션 선택.
- * 일반 `<select>` 와 달리 MUI는 listbox를 mount 해야 하므로 click → option 클릭.
+ *
+ * 주의: medipanda-web 은 대부분 `<InputLabel>{text}</InputLabel>` 만 쓰고
+ * `<Select labelId=...>` 연결을 하지 않음. 이로 인해 role='combobox' 의
+ * accessible name 이 비어 `getByRole('combobox', { name })` 로는 못 찾음.
+ * → `.MuiFormControl-root:has-text(label)` 컨테이너로 스코프 후 combobox 탐색.
  *
  * 사용:
  * ```
  * await selectMuiOption(page, '계약상태', '계약');
  * ```
  */
+export function muiSelect(page: Page, labelText: string): Locator {
+  return page.locator('.MuiFormControl-root').filter({ hasText: labelText }).getByRole('combobox');
+}
+
 export async function selectMuiOption(page: Page, labelText: string, optionText: string): Promise<void> {
-  await page.getByLabel(labelText).click();
+  await muiSelect(page, labelText).click();
   await page.getByRole('option', { name: optionText }).click();
 }
 

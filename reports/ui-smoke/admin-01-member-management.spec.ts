@@ -28,7 +28,7 @@
  */
 
 import { test, expect, type Page, type Route } from '@playwright/test';
-import { BASE_URL_ADMIN, EMPTY_PAGE, pageResponse, api, acceptNextDialog } from './_fixtures';
+import { BASE_URL_ADMIN, EMPTY_PAGE, pageResponse, api, expectMpModal, acceptMpModal, expectSnackbar, muiSelect } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────
 // URL 상수
@@ -154,8 +154,11 @@ const DELETED_MEMBER_DETAIL: MemberDetail = {
 // mock helper
 // ────────────────────────────────────────────────────────────
 
+// GET /v1/members (목록만) - query string 포함. 하위 경로(/v1/members/admins/..., /v1/members/:id/details)는 제외.
+const MEMBERS_LIST_RE = /\/v1\/members(\?|$)/;
+
 async function mockMembersList(page: Page, body: unknown): Promise<void> {
-  await page.route(api('/v1/members*'), async (route: Route) => {
+  await page.route(MEMBERS_LIST_RE, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({
       status: 200,
@@ -192,7 +195,7 @@ async function mockContractNotFound(page: Page, userId: string): Promise<void> {
 }
 
 async function mockMembersListError(page: Page): Promise<void> {
-  await page.route(api('/v1/members*'), async (route: Route) => {
+  await page.route(MEMBERS_LIST_RE, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({
       status: 500,
@@ -216,11 +219,13 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
       await expect(page.getByRole('heading', { name: '회원관리' })).toBeVisible();
 
       // 검색 필터 라벨
-      // TODO: verify selector — MUI InputLabel 은 실제 DOM 상 span 으로 렌더될 수 있음
-      await expect(page.getByLabel('계약상태')).toBeVisible();
-      await expect(page.getByLabel('검색유형')).toBeVisible();
-      await expect(page.getByLabel('시작일')).toBeVisible();
-      await expect(page.getByLabel('종료일')).toBeVisible();
+      // MUI <InputLabel> 이 labelId 연결 없이 쓰이므로 combobox accessible name 이 비어있음
+      // → muiSelect 헬퍼로 FormControl 컨테이너 스코프 사용
+      await expect(muiSelect(page, '계약상태')).toBeVisible();
+      await expect(muiSelect(page, '검색유형')).toBeVisible();
+      // DatePicker 는 group+hidden input 두 요소 모두 매칭되므로 group 으로 좁힘
+      await expect(page.getByRole('group', { name: '시작일' })).toBeVisible();
+      await expect(page.getByRole('group', { name: '종료일' })).toBeVisible();
       await expect(page.getByLabel('검색어')).toBeVisible();
 
       // 액션 버튼
@@ -256,12 +261,10 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
     test('API 에러 — 목록 조회 500 시 alert 노출', async ({ page }) => {
       await mockMembersListError(page);
 
-      const dialogPromise = acceptNextDialog(page);
       await page.goto(MEMBERS_URL);
 
-      const msg = await dialogPromise;
-      // TODO: verify — useMpModal.alertError 메시지 원문 확인 필요
-      expect(msg).toContain('회원 목록을 불러오는 중 오류가 발생했습니다.');
+      await expectMpModal(page, '회원 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
 
     test('검색 유효성 — searchType 미선택 상태에서 검색어만 입력 후 검색 시 alert', async ({ page }) => {
@@ -269,14 +272,11 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
 
       await page.goto(MEMBERS_URL);
 
-      // 검색어만 입력 (searchType = '')
       await page.getByLabel('검색어').fill('홍길동');
-
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '검색' }).click();
 
-      const msg = await dialogPromise;
-      expect(msg).toContain('검색유형을 선택하세요.');
+      await expectMpModal(page, '검색유형을 선택하세요.');
+      await acceptMpModal(page);
     });
 
     test('회원번호 숫자 검증 — searchType=회원번호 + 문자열 입력 시 alert', async ({ page }) => {
@@ -284,18 +284,14 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
 
       await page.goto(MEMBERS_URL);
 
-      // MUI Select 열기
-      // TODO: verify selector — getByLabel 이 combobox 역할을 가져오는지 실제 DOM 확인
-      await page.getByLabel('검색유형').click();
+      await muiSelect(page, '검색유형').click();
       await page.getByRole('option', { name: '회원번호' }).click();
 
       await page.getByLabel('검색어').fill('abc');
-
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '검색' }).click();
 
-      const msg = await dialogPromise;
-      expect(msg).toContain('회원번호는 숫자만 입력할 수 있습니다.');
+      await expectMpModal(page, '회원번호는 숫자만 입력할 수 있습니다.');
+      await acceptMpModal(page);
     });
 
     test('회원명 링크 클릭 시 /admin/members/:userId/edit 이동', async ({ page }) => {
@@ -326,26 +322,23 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
       const phoneInput = page.getByRole('textbox', { name: /연락처/ });
       await expect(phoneInput).toHaveValue('010-1234-5678');
 
-      const emailInput = page.getByRole('textbox', { name: /이메일/ });
+      const emailInput = page.getByRole('textbox', { name: /E-mail/ });
       await expect(emailInput).toHaveValue('hong@example.com');
     });
 
     test('이메일 형식 오류 — 잘못된 이메일로 저장 시 alert', async ({ page }) => {
       await page.goto(MEMBER_EDIT_URL('testuser1'));
 
-      const emailInput = page.getByRole('textbox', { name: /이메일/ });
+      const emailInput = page.getByRole('textbox', { name: /E-mail/ });
       await emailInput.fill('not-an-email');
 
-      const dialogPromise = acceptNextDialog(page);
-      // TODO: verify selector — "저장" 버튼 텍스트가 실제 DOM에 그대로 있는지 확인
       await page.getByRole('button', { name: '저장' }).click();
 
-      const msg = await dialogPromise;
-      expect(msg).toContain('올바른 이메일 형식이 아닙니다.');
+      await expectMpModal(page, '올바른 이메일 형식이 아닙니다.');
+      await acceptMpModal(page);
     });
 
     test('회원 상세 조회 실패 — 에러 snackbar 노출 후 히스토리 백', async ({ page }) => {
-      // 에러 응답 먼저 덮어쓰기
       await page.route(api('/v1/members/fail-user/details'), async (route: Route) => {
         return route.fulfill({
           status: 500,
@@ -357,11 +350,20 @@ test.describe('admin/01 MEMBER_MANAGEMENT — 회원관리 smoke', () => {
         return route.fulfill({ status: 404, body: '{}' });
       });
 
+      // 실 코드는 enqueueSnackbar 직후 window.history.back() 을 호출 → 그대로 두면
+      // 스낵바가 mount 되자마자 페이지가 이탈해 Playwright 가 잡지 못함.
+      // history.back() 을 테스트에서만 지연시켜 스낵바 관찰 여유 확보.
+      await page.addInitScript(() => {
+        const original = window.history.back.bind(window.history);
+        window.history.back = () => {
+          setTimeout(original, 2000);
+        };
+      });
+
       await page.goto(MEMBER_EDIT_URL('fail-user'));
 
-      // notistack snackbar 확인
-      // TODO: verify selector — notistack 은 role='alert' 또는 .SnackbarItem 클래스 사용
-      await expect(page.getByText('회원 정보를 불러오는데 실패했습니다.')).toBeVisible();
+      // 실 코드(MpAdminMemberEdit.tsx:186)는 useSnackbar.enqueueSnackbar 사용
+      await expectSnackbar(page, '회원 정보를 불러오는데 실패했습니다.');
     });
 
     test('탈퇴 회원 — DELETED 상태일 때 저장 버튼 숨김', async ({ page }) => {

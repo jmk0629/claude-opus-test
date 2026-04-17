@@ -111,3 +111,106 @@
 - admin-01 / admin-11 의 snackbar 실패 ~14건에 `expectSnackbar()` 적용 (8.1의 헬퍼 활용)
 - user 배치 나머지 10개 spec 실행해서 패턴 확산 확인
 - JWT refresh 자동화 (23개 전체 배치 실행용)
+
+## 9. 후속 조치 2차 (동일 세션 연속 작업) ✅
+
+8.4 항목을 순차 처리. admin-01 → admin-11 → JWT refresh 순으로 진행.
+
+### 9.1 admin-01 재작업 (1/10 → 10/10)
+
+| 항목 | Before | After | 해결 방식 |
+|------|--------|-------|-----------|
+| 통과/실패 | 1 / 9 | **10 / 0** | — |
+| MUI Select 가시성 | ❌ `getByLabel('계약상태')` 미발견 | ✅ `muiSelect(page, '계약상태')` | `.MuiFormControl-root:has-text(label)` 컨테이너 스코프 |
+| DatePicker strict mode | ❌ `getByLabel('시작일')` 2개 매칭 | ✅ `getByRole('group', { name: '시작일' })` | group role 로 좁힘 |
+| 이메일 텍스트박스 | ❌ `name: /이메일/` | ✅ `name: /E-mail/` | 실 label 확인 |
+| snackbar + history.back race | ❌ 스낵바 mount 직후 `history.back()` 으로 이탈 | ✅ `addInitScript` 로 `window.history.back` 을 2초 지연 | 테스트 전용 타이밍 조정 |
+| api() 트레일링 `**` 오매칭 | ❌ `/v1/members` 가 `/v1/members/admins/.../permissions` 까지 가로채 AdminGuard 실패 | ✅ `MEMBERS_LIST_RE = /\/v1\/members(\?\|$)/` | 정규식으로 정확한 리소스 매칭 |
+
+### 9.2 admin-11 재작업 (4/11 → 11/11)
+
+동일한 네 가지 구조적 수정 + 추가:
+
+- **배너 목록 `/v1/banners` 매칭** → `BANNERS_LIST_RE = /\/v1\/banners(\?|$)/` 로 고정
+- **배너 단건 `/v1/banners/42`** → `bannerByIdRe(42) = /\/v1\/banners\/42(\?|$)/` 하위 경로 제외
+- **5개 `acceptNextDialog` 호출** → 모두 `expectMpModal + acceptMpModal` 로 치환 (useMpModal 은 MUI Dialog, native alert 아님)
+- **`seedAdminSession(localStorage 주입)` 제거** — admin project 의 `storageState: .auth/admin.json` 으로 이미 쿠키 인증되어 있어 불필요
+- **`등록` 버튼 role** → button 이 아니라 link 였음 (`RouterLink` 기반)
+
+### 9.3 `_fixtures.ts` 헬퍼 추가
+
+| 헬퍼 | 역할 |
+|------|------|
+| `muiSelect(page, labelText)` | MUI `<InputLabel>` 이 `labelId` 연결 없이 쓰이는 경우 `.MuiFormControl-root` 컨테이너로 스코프해 내부 combobox 탐색 |
+| `selectMuiOption(page, label, option)` | `muiSelect` + option 클릭을 한번에 |
+| `expectSnackbar` 셀렉터 확장 | notistack 실제 클래스가 `.notistack-MuiContent-error` (suffix 붙음) 이라 `[class*="notistack-MuiContent"]` 부분 매칭으로 교체 |
+
+### 9.4 JWT refresh 자동화 ✅
+
+`playwright/refresh-auth.ts` — access/refresh token을 무중단 갱신하는 스크립트.
+
+**핵심 설계**:
+1. `.auth/{target}.json` 파일에서 `AUTH_TOKEN` 쿠키 + localStorage 의 `refreshToken` 을 직접 읽음 (Playwright context 는 page 방문 전엔 cookie 로딩 안 함)
+2. `userId` 확보: ① `/v1/auth/me` (200이면 여기서) → ② 실패 시 `AUTH_TOKEN` JWT payload 의 `sub` 디코드 (access token 만료돼도 payload 자체는 읽힘)
+3. `POST /v1/auth/token/refresh` 로 새 accessToken(쿠키)+refreshToken(body) 발급
+4. 새 refreshToken 을 localStorage 에 쓰고 `context.storageState({ path })` 로 파일 덮어씀
+
+**스크립트**:
+- `npm run auth:refresh:admin` — admin 토큰 연장
+- `npm run auth:refresh:user` — user 토큰 연장
+
+**검증**:
+```
+$ npm run auth:refresh:admin  # [admin] ✓ refreshed at 2026-04-17T06:04:34.166Z (userId=TESTADMIN1)
+$ npm run auth:refresh:user   # access token 만료 상태에서도 성공
+   [user] ✓ refreshed at 2026-04-17T06:06:10.967Z (userId=royhojin1)
+```
+
+refresh token 수명(14일) 내에선 access token(30분) 만료를 무시하고 연장 가능 → **23개 전수 배치 실행의 실질적 blocker 해소**.
+
+### 9.5 admin 전체 현황
+
+| Spec | 전 세션 | 현재 | 비고 |
+|------|---------|------|------|
+| admin-01 | 1/10 | **10/10** ✅ | 본 세션에서 완주 |
+| admin-11 | 4/11 | **11/11** ✅ | 본 세션에서 완주 |
+| 그 외 admin 12개 | 미실행 | 미실행 | 같은 수정 패턴 적용 대상 |
+
+### 9.6 이번 세션에서 배운 것 (다음 세션 체크리스트)
+
+- **MUI Select 가시성/클릭**: `getByLabel`/`getByRole('combobox', {name})` 둘 다 실패 → `.MuiFormControl-root:has-text()` 스코프가 유일하게 안정적
+- **DatePicker**: `getByLabel` 은 strict mode 위반, `getByRole('group', {name})` 사용
+- **api() 헬퍼**: `**` 트레일링 자동 추가 금지. 목록 endpoint 는 호출부에서 정규식 `/\/v1\/{resource}(\?|$)/`
+- **useMpModal vs notistack**: `alert()/alertError()` 는 MUI Dialog, `enqueueSnackbar` 는 notistack — 구분해 `expectMpModal`/`expectSnackbar` 사용
+- **notistack CSS class**: `.notistack-MuiContent-{variant}` suffix 구조 → `[class*="notistack-MuiContent"]`
+- **history.back race**: spec 시작 시 `page.addInitScript(() => { window.history.back = () => setTimeout(orig, 2000); })` 로 관찰 시간 확보
+- **RouterLink 기반 "등록" 버튼**: `getByRole('link')` 사용 (button 아님)
+
+### 9.7 user 배치 재실행 — JWT 만료가 기준선을 오염시키고 있었다
+
+**발견 경위**: admin-01/11 수정 후 user 배치 첫 기준선(38 passed / 61 failed, 10.1분)을 잡고 user-02-home(6 fails) 부터 체계적 수정을 시작했는데, 첫 실패 `error-context.md` 의 page snapshot 이 `link "로그인"` + `src="/assets/hero-public.svg"` 렌더 — **비로그인 상태로 페이지가 떴음**. 그런데 spec 은 `test.use(UNAUTHENTICATED_STATE)` 가 아닌데도.
+
+**원인**: `useSession` → `whoAmI()` 실제 호출이 401 → `session=null` → hero-public.svg. `.auth/user.json` 의 JWT `exp` 가 테스트 시작 시점 기준 이미 지나 있었음(iat/exp 를 로컬시간으로 디코드해 확인).
+
+**조치**: `npm run auth:refresh:user` 한 번 돌리고 user 배치 재실행 → **65 passed / 34 failed (6.8분)**. JWT refresh 한 줄로 27건이 그대로 회복. user-02-home 은 6/8 실패였다가 수정 없이 **8/8 통과**.
+
+**교훈 (향후 실행 프로토콜)**:
+1. user/admin 배치 전 **무조건 `npm run auth:refresh:{target}` 선행**. 30분 access token 이 배치 중간에 끊기는 것까지는 못 막지만, 시작 시점 유효성은 확보.
+2. 실패 분석 시 첫 번째 질문: *"storageState 가 실제로 세션으로 번역됐나?"* — `link "로그인"` 이나 `/assets/hero-public.svg` 같은 비로그인 DOM 시그니처가 보이면 spec 수정 전에 JWT 부터 의심.
+3. 배치 런타임 30분 내로 맞추거나, 러너에 `globalSetup` 에서 refresh 를 자동 선행하는 것이 다음 인프라 개선 후보.
+
+### 9.8 현재 user 배치 실패 분포 (34건, fresh JWT 기준)
+
+| Spec | 실패 건수 | 주된 패턴 |
+|------|-----------|-----------|
+| user-10-mypage | 12 | alert 기반(MpModal vs notistack 구분 필요), 비밀번호/닉네임/탈퇴 flow 전반 |
+| user-11-partner-contract | 5 | 폼 필드 셀렉터, 첨부파일 링크 name |
+| user-01-auth-pages | 4 | 로그인 페이지는 UNAUTHENTICATED_STATE 가 필요 — storageState 덮어쓰기 누락 추정 |
+| user-05-settlement | 4 | (이전 11 → 4로 회복) 페이지 헤더/컬럼 렌더 셀렉터 |
+| user-09-customer-service | 4 | 공지/FAQ/1:1문의 목록 셀렉터 |
+| user-03-product-search | 1 | 상세검색 패널 토글 |
+| user-04-prescription-management | 1 | 삭제 플로우 confirm (MpModal 전환 필요로 추정) |
+| user-06-community | 1 | 상세 페이지 셀렉터 |
+| user-07-sales-agency-product | 2 | 신청 버튼 활성/비활성 상태 |
+
+다음 세션 우선순위: user-10 (12) → user-11 (5) → user-01 (4, UNAUTHENTICATED_STATE 한 줄로 끝날 가능성) → 나머지.
