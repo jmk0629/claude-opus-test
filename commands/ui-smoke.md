@@ -51,6 +51,21 @@ test-writer 에이전트에 다음 전달:
 
 ---
 
+## Phase 3.5: TypeScript 검증 루프 (품질 가드)
+
+생성된 spec을 commit하기 전에 **반드시** strict TypeScript 컴파일 통과 확인:
+
+```bash
+cd /Users/jmk0629/Downloads/homework/claude-opus-test
+npm run typecheck:ui-smoke
+```
+
+- 실패 시: 에러 메시지 확인 → 해당 spec 수정 → 재실행. tsc가 깨끗이 통과할 때까지 반복.
+- 과거 케이스: `page.getByDisplayValue(...)` (Page에 없는 메서드) → `page.locator('input[value="..."]')`로 수정.
+- 배치 모드(user/admin/all)에서도 **전체 spec이 통과할 때까지** 다음 단계 금지.
+
+---
+
 ## Phase 4: 요약 리포트 작성
 
 test-writer 응답을 바탕으로 마크다운 리포트 생성:

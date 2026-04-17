@@ -45,9 +45,17 @@ Read로 다음 정보 추출:
 
 ### 4. Playwright 코드 생성
 - `@playwright/test` import 가정
+- **공용 픽스처 import 필수**: `reports/ui-smoke/_fixtures.ts`에서 다음 helper 재사용
+  - `BASE_URL_USER` / `BASE_URL_ADMIN` (하드코딩 금지)
+  - `EMPTY_PAGE`, `pageResponse<T>(items, opts)` (Spring Page 응답 스텁)
+  - `acceptNextDialog(page)`, `dismissNextDialog(page)`, `autoAcceptDialogs(page)` (alert/confirm 처리)
+  - `api(path)`, `API_V1` 프리셋 (baseURL 와일드카드 매칭)
+  - `injectTestSession(page, session)`, `SESSION_PRESETS` (localStorage 세션 주입)
+  - import 경로 예: `import { BASE_URL_USER, EMPTY_PAGE, api } from './_fixtures';`
 - `test.describe` 블록 하나로 메뉴별 묶기
 - 각 시나리오는 `test('...', async ({ page }) => { ... })` 개별 케이스
 - 셀렉터 우선순위: `getByRole` > `getByText` > `getByLabel` > `getByTestId` > CSS
+- **Playwright API 주의**: `getByDisplayValue`는 `Locator` 전용, `Page`에는 없음 → 폼 인풋 검증은 `page.locator('input[value="..."]')` 또는 `page.getByRole('textbox')` 사용
 - 한글 텍스트 매칭은 그대로 허용 (i18n 전이라 안정적)
 - 불확실한 셀렉터는 `// TODO: verify selector` 주석 + 합리적 가정치 작성
 
@@ -105,5 +113,6 @@ Write로 지정된 출력 경로에 저장. `reports/ui-smoke/` 디렉토리가 
 - **초안 강조**: 헤더 주석·응답 모두 "초안, 수동 검수 필요" 표현
 - **추측 금지**: 문서에 없는 기능·API를 테스트로 만들지 말 것
 - **.tsx 전체 Read 금지**: 200줄 넘으면 필요한 부분만 offset/limit로
-- **라이브러리 의존성 최소**: Playwright 표준 API만 사용, 프로젝트 전용 헬퍼 import 금지
-- **하드코딩 최소화**: URL은 `BASE_URL` 변수로, 반복 셀렉터는 `beforeEach`로
+- **라이브러리 의존성 최소**: Playwright 표준 API + 공용 `_fixtures.ts`만 사용. medipanda-web 내부 모듈 import는 금지.
+- **하드코딩 최소화**: URL은 `BASE_URL_USER`/`BASE_URL_ADMIN`, 반복 로직은 `beforeEach`로
+- **tsc 통과 필수**: 생성 후 `npm run typecheck:ui-smoke`로 strict 모드 컴파일 통과 확인. 실패 시 해당 케이스 수정 후 재검증.

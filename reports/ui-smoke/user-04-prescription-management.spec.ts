@@ -177,7 +177,7 @@ test.describe('user/04 실적관리 (PrescriptionList)', () => {
 
     // 오버레이 열리면 폼에 기존 값(거래처명 businessNumber 등)이 표시됨
     // TODO: verify selector - MedipandaOutlinedInput의 실제 label/aria-label
-    await expect(page.getByDisplayValue(SAMPLE_ITEM.institutionName)).toBeVisible();
+    await expect(page.locator(`input[value="${SAMPLE_ITEM.institutionName}"]`)).toBeVisible();
   });
 
   test('6) 권한/상태 분기: status=PENDING 일 때 "수정"/"삭제" 버튼, 아니면 "닫기"만', async ({ page }) => {

@@ -1,0 +1,14 @@
+{
+  "name": "claude-opus-test-harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Harness engineering experiments for medipanda-web. Hosts Playwright spec drafts and validation tooling.",
+  "scripts": {
+    "typecheck:ui-smoke": "tsc --noEmit -p tsconfig.ui-smoke.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^25.6.0",
+    "typescript": "^5.5.0"
+  }
+}
