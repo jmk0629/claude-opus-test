@@ -17,6 +17,7 @@
 | [`AUTOMATION_PLAN.md`](AUTOMATION_PLAN.md) | 전체 자동화 로드맵 (A1~C2, P0~P3) + 현재 진행표 |
 | [`README.md`](README.md) | 레포 전반, 로컬 설치(심볼릭 링크), 사용 예시 |
 | [`INDEX.md`](INDEX.md) | **이 문서** — 모든 산출물 한눈에 보기 |
+| [`reports/medipanda-architecture-20260416.md`](reports/medipanda-architecture-20260416.md) | 2026-04-16 외주사 인수인계 미팅 기반 **전체 시스템 아키텍처** (원본 HTML 인포그래픽을 검색 가능한 md로 변환 + 하네스 연계 포인트) |
 
 ---
 
@@ -99,6 +100,10 @@
 ---
 
 ## 3. 기타 문서
+
+### 3.0 미팅 인텔리전스 (외주사 인수인계)
+
+- [`reports/medipanda-architecture-20260416.md`](reports/medipanda-architecture-20260416.md) — 2026-04-16 미팅 기반 전체 아키텍처 (클라이언트/백엔드/추론·외부/데이터/CI·CD/EDI/배치/DNS/개선/인수인계). 원본 HTML(`~/Downloads/Keymedi 업무/20260417 메디판다 회의 AI 정리본/`) → md 변환 + 하네스 연계 포인트 8절.
 
 ### 3.1 튜토리얼 (레퍼런스)
 

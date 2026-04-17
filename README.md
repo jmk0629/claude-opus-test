@@ -4,6 +4,7 @@ Claude Code 서브에이전트 기반 **하네스 엔지니어링(harness engine
 [medipanda-web](https://github.com/) 프론트엔드에서 반복되는 **드리프트·계약 위반·보안 구멍 탐지**를 슬래시 커맨드 한 줄로 자동화하는 것이 목표.
 
 > **산출물 한눈에 보기**: [`INDEX.md`](INDEX.md) — 지금까지 만든 agents/commands/reports 전체 색인.
+> **시스템 아키텍처**: [`reports/medipanda-architecture-20260416.md`](reports/medipanda-architecture-20260416.md) — 2026-04-16 외주사 인수인계 미팅 기반 전체 구조.
 
 ---
 
