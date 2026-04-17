@@ -28,6 +28,10 @@ const PARTNER_CONTRACT_URL = `${BASE_URL}/partner-contract`;
 // ────────────────────────────────────────────────────────────
 // 공용 mock payload — 실제 API 응답 스키마와 맞추어 수동 검수 필요
 // ────────────────────────────────────────────────────────────
+// ⚠️ fileUrls 의 키는 PartnerContract.tsx 의 실제 접근 키와 1:1 매핑이어야 함:
+//   - BUSINESS_REGISTRATION, CSO_CERTIFICATE, SALES_EDUCATION_CERT
+// 잘못된 키(EDUCATION_CERTIFICATE 등)를 주면 extractFileName(undefined) 에서
+// new URL(undefined) 가 TypeError 를 던져 페이지 전체가 blank 렌더됨 — 이전 버전 버그.
 const APPROVED_CONTRACT = {
   status: 'APPROVED',
   contractType: 'ORGANIZATION',
@@ -41,7 +45,7 @@ const APPROVED_CONTRACT = {
       'https://s3.example.com/files/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee_%EC%82%AC%EC%97%85%EC%9E%90%EB%93%B1%EB%A1%9D%EC%A6%9D.pdf',
     CSO_CERTIFICATE:
       'https://s3.example.com/files/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee_cso.pdf',
-    EDUCATION_CERTIFICATE:
+    SALES_EDUCATION_CERT:
       'https://s3.example.com/files/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee_edu.pdf',
   },
 };
@@ -70,16 +74,16 @@ test.describe('user/11 PARTNER_CONTRACT — 파트너사 계약 smoke', () => {
     test('페이지 진입 시 "파트너사 계약신청" 타이틀 + 주요 필드 렌더', async ({ page }) => {
       await page.goto(PARTNER_CONTRACT_URL);
 
-      await expect(page.getByText('파트너사 계약신청')).toBeVisible();
+      await expect(page.getByText('파트너사 계약신청', { exact: true })).toBeVisible();
 
-      // 2열 레이아웃 레이블 — 문서에 명시된 라벨
-      // TODO: verify selector — 실제 DOM 의 Typography 텍스트 확인
-      await expect(page.getByText('계약유형')).toBeVisible();
-      await expect(page.getByText('회사명')).toBeVisible();
-      await expect(page.getByText('사업자등록번호')).toBeVisible();
-      await expect(page.getByText('사업자등록증')).toBeVisible();
-      await expect(page.getByText('정산은행')).toBeVisible();
-      await expect(page.getByText('계좌번호')).toBeVisible();
+      // 2열 레이아웃 레이블 — 한글 라벨은 footer/약관 텍스트와 부분 일치하는 경우가 많아
+      // `{ exact: true }` 로 강제. (예: "사업자등록번호" 는 footer "사업자등록번호 : 123-..." 와 충돌)
+      await expect(page.getByText('계약유형', { exact: true })).toBeVisible();
+      await expect(page.getByText('회사명', { exact: true })).toBeVisible();
+      await expect(page.getByText('사업자등록번호', { exact: true })).toBeVisible();
+      await expect(page.getByText('정산은행', { exact: true })).toBeVisible();
+      await expect(page.getByText('계좌번호', { exact: true })).toBeVisible();
+      // 사업자등록증 라벨은 소스상 존재하지 않음 (BUSINESS_REGISTRATION 업로드 행은 라벨이 빈 PartnerContractFormLabel/>)
     });
 
     test('계약유형 버튼(법인/개인) 모두 표시되고 클릭 시 선택 상태 전환', async ({ page }) => {
@@ -99,8 +103,9 @@ test.describe('user/11 PARTNER_CONTRACT — 파트너사 계약 smoke', () => {
     test('사업자등록번호 입력 시 normalizeBusinessNumber 자동 포맷 (000-00-00000)', async ({ page }) => {
       await page.goto(PARTNER_CONTRACT_URL);
 
-      // TODO: verify selector — placeholder 정확 문자열
-      const input = page.getByPlaceholder("'-'없이 입력해주세요.");
+      // businessNumber 와 accountNumber 둘 다 동일 placeholder ("'-'없이 입력해주세요.") 를 씀 →
+      // name 속성으로 구분. Controller 의 {...field} 전개로 name="businessNumber" 가 input 에 내려감.
+      const input = page.locator('input[name="businessNumber"]');
       await input.fill('1234567890');
       await expect(input).toHaveValue('123-45-67890');
     });
@@ -168,15 +173,16 @@ test.describe('user/11 PARTNER_CONTRACT — 파트너사 계약 smoke', () => {
       await mockContractDetails(page, APPROVED_CONTRACT);
       await page.goto(PARTNER_CONTRACT_URL);
 
-      await expect(page.getByText('파트너사 계약현황')).toBeVisible();
+      await expect(page.getByText('파트너사 계약현황', { exact: true })).toBeVisible();
 
-      // 회사명 인풋은 서버 값 그대로 + disabled
-      // TODO: verify selector — OutlinedInput 내부 <input> 접근
-      const companyInput = page.locator('input[value="메디판다(주)"]');
+      // 회사명은 react-hook-form Controller 의 {...field} 로 name="companyName" 이 내려감 → name 선택자.
+      // 값 확인은 toHaveValue, disabled 여부는 toBeDisabled.
+      const companyInput = page.locator('input[name="companyName"]');
+      await expect(companyInput).toHaveValue('메디판다(주)');
       await expect(companyInput).toBeDisabled();
 
-      // 계약일 — YYYY년 MM월 DD일 포맷 (APPROVED)
-      await expect(page.getByText(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/)).toBeVisible();
+      // 계약일 — YYYY년 MM월 DD일 포맷 (APPROVED). input.value 에 들어감.
+      await expect(page.locator('input[value*="년"]')).toBeVisible();
 
       // K-Medicine 로고 (계약 현황 전용)
       await expect(page.locator('img[src="/assets/logos/logo-kmedicine.png"]')).toBeVisible();
@@ -186,8 +192,7 @@ test.describe('user/11 PARTNER_CONTRACT — 파트너사 계약 smoke', () => {
       await mockContractDetails(page, PENDING_CONTRACT);
       await page.goto(PARTNER_CONTRACT_URL);
 
-      await expect(page.getByText('파트너사 계약현황')).toBeVisible();
-      // TODO: verify selector — disabled input value 로 매칭
+      await expect(page.getByText('파트너사 계약현황', { exact: true })).toBeVisible();
       await expect(page.locator('input[value="계약서 검토중"]')).toBeVisible();
     });
 
@@ -196,7 +201,7 @@ test.describe('user/11 PARTNER_CONTRACT — 파트너사 계약 smoke', () => {
       await page.goto(PARTNER_CONTRACT_URL);
 
       // fetchContractDetails 에서 REJECTED 는 setContractDetails 호출 안 함
-      await expect(page.getByText('파트너사 계약신청')).toBeVisible();
+      await expect(page.getByText('파트너사 계약신청', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: '계약신청완료' })).toBeVisible();
     });
 

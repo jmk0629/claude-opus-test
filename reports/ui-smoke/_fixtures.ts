@@ -203,6 +203,37 @@ export const UNAUTHENTICATED_STATE: { storageState: { cookies: []; origins: [] }
 };
 
 // ────────────────────────────────────────────────────────────────
+// 6b. MypageGuard 비밀번호 재확인 게이트 통과
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * `/mypage/*` 는 MypageGuard 가 2차 비밀번호 확인을 요구함.
+ *   - gate 통과 전: "마이페이지" 헤더 + "비밀번호를 입력해주세요." placeholder + "확인" 버튼
+ *   - POST /v1/members/check-password 가 true 반환하면 children 렌더
+ *
+ * 이 helper 는 checkPassword 를 true 로 stub 하고 gate 를 통과시킨 뒤
+ * `내정보관리`/`정말로` 같은 실제 mypage 컨텐츠 렌더를 기다린다.
+ *
+ * 사용:
+ * ```
+ * test.beforeEach(async ({ page }) => {
+ *   await page.goto('/mypage/info');
+ *   await passMypageGate(page, '내정보관리');
+ * });
+ * ```
+ */
+export async function passMypageGate(page: Page, expectContent: string | RegExp = '내정보관리'): Promise<void> {
+  // checkPassword 는 POST /v1/members/check-password?password=... 형식 (params 로 전달)
+  // glob `**/v1/members/check-password` 는 query string 포함 URL 을 못 잡으므로 regex 사용
+  await page.route(/\/v1\/members\/check-password(\?|$)/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: 'true' }),
+  );
+  await page.getByPlaceholder('비밀번호를 입력해주세요.').fill('dummy');
+  await page.getByRole('button', { name: '확인' }).click();
+  await expect(page.getByText(expectContent).first()).toBeVisible({ timeout: 10000 });
+}
+
+// ────────────────────────────────────────────────────────────────
 // 7. 세션 주입 (storageState 없이 localStorage로 mock)
 // ────────────────────────────────────────────────────────────────
 

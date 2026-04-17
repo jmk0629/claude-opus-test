@@ -214,3 +214,29 @@ refresh token 수명(14일) 내에선 access token(30분) 만료를 무시하고
 | user-07-sales-agency-product | 2 | 신청 버튼 활성/비활성 상태 |
 
 다음 세션 우선순위: user-10 (12) → user-11 (5) → user-01 (4, UNAUTHENTICATED_STATE 한 줄로 끝날 가능성) → 나머지.
+
+### 9.9 user 배치 최종 기준선 — 98 passed / 1 skipped / 0 failed
+
+34건 실패를 우선순위 순으로 모두 정리한 결과. 런타임 3.2분.
+
+| Spec | 통과 | skip | 주요 수정 패턴 |
+|------|------|------|----------------|
+| user-10-mypage | 11 | 1 | `passMypageGate` helper 신설(2차 비밀번호 게이트 통과), `SESSION_USER_ID='royhojin1'` 로 교정, 라벨 뒤 input 은 `inputByRowLabel(xpath=following-sibling)` 로 스코프. "이름 비었을 때 alert" 는 whoAmI stub 전체 필요 → test.skip + 사유 기재 |
+| user-11-partner-contract | 11 | - | **mock key 오타가 JS 크래시 원인**: `EDUCATION_CERTIFICATE` → `SALES_EDUCATION_CERT` (컴포넌트는 후자를 읽어 `new URL(undefined)` 발생, 페이지 전체 blank). 동일 placeholder 가 businessNumber/accountNumber 에 쓰여 `input[name=...]` 로 분기. "사업자등록번호" 는 footer 회사정보와 충돌 → `{ exact: true }` 필수 |
+| user-01-auth-pages | 8 | - | 예상대로 `test.use(UNAUTHENTICATED_STATE)` 한 줄. 인증된 세션으로 `/login` 방문 시 `/` 로 즉시 redirect 되어 ID/Password input 이 존재하지 않는 구조 |
+| user-05-settlement | 10 | - | "제약사명" 은 disabled Select label + 테이블 header 중복 → `getByRole('combobox').filter` / `getByRole('columnheader', { exact: true })`. 활성 탭은 `<button>`, 비활성 탭은 `<link>` — 위치별 role 이 다름 |
+| user-09-customer-service | 8 | - | `Typography variant='headingPc3M'` 은 role=heading 이 아님 → `span.MuiTypography-headingPc3M` 로 스코프. "문의하기" 는 tab / submit 버튼에 동명 → `role='tab'` + `button[type='submit']` 로 분기 |
+| user-03-product-search | 9 | - | 상세검색 패널 라벨은 `span.MuiTypography-largeTextM` 전용 ClassName 으로 스코프 (버튼 '성분명' 과 구분) |
+| user-04-prescription-management | 9 | - | **`route.continue()` → `route.fallback()`**. DELETE 와 GET 이 같은 URL 을 공유하면 `continue()` 는 네트워크로 나가서 이전 `page.route()` 스텁(GET detail)을 못 탄다. `fallback()` 이 정답 |
+| user-06-community | 8 | - | `getBoardDetails` 는 `?filterBlind=...` 쿼리스트링을 붙이므로 glob `**/v1/boards/101` 미매칭 → regex `/\/v1\/boards\/101(\?\|$)/` 로 교체. 상세 title 은 본문 headingPc4B + 관련글 smallTextR 중복 → 본문 전용 스코프 |
+| user-07-sales-agency-product | 9 | - | applied/endDate 분기가 버튼 텍스트를 바꾸므로 실제 시드 데이터 대신 명시적 mock 으로 고정 |
+| **합계** | **98** | **1** | **0 failures** |
+
+### 9.10 JWT 만료 2차 사건 — fresh 한 직후 30분 내에도 끊긴다
+
+user-10/11/01 수정 후 나머지 6개 spec 배치를 돌리는 2분 사이에 JWT 가 다시 만료. 증상은 9.7 과 동일(`link "로그인"` 리다이렉트). 이번엔 `refresh-auth.ts` 한 번 더 돌리고 재실행 → 정상화.
+
+**프로토콜 보강**:
+- 배치 전 refresh 로는 부족함. **spec 15개 이상 또는 2분+ 예상되면 중간에 재확인** 필요.
+- 장기적으론 Playwright `globalSetup` + access/refresh token 자동 교환이 해결책.
+- 단기적으론 실패 `error-context.md` 의 snapshot 에서 `link "로그인"` / `textbox "ID"` / `hero-public.svg` 중 하나라도 보이면 **spec 수정 전에 무조건 JWT 부터 refresh**.

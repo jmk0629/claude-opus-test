@@ -28,9 +28,10 @@ test.describe('user/09 고객센터 (Customer Service) — smoke 초안', () => 
   test('1. 공지사항 목록 페이지 정상 로드 — 제목/검색창 렌더', async ({ page }) => {
     await page.goto(`${BASE_URL}/customer-service/notice`);
 
-    await expect(page.getByRole('heading', { name: '공지사항' })).toBeVisible();
+    // 제목은 <Typography variant='headingPc3M'> 로 렌더되므로 role=heading 이 아님.
+    // 사이드바 링크 "공지사항" + 헤더 nav "공지사항" 과 충돌 → headingPc3M 클래스로 스코프.
+    await expect(page.locator('span.MuiTypography-headingPc3M').filter({ hasText: '공지사항' })).toBeVisible();
     await expect(page.getByPlaceholder('제약사명 또는 제목을 검색해주세요')).toBeVisible();
-    // 테이블 영역이 렌더되는지 (DOM role=table)
     await expect(page.locator('table').first()).toBeVisible();
   });
 
@@ -111,7 +112,8 @@ test.describe('user/09 고객센터 (Customer Service) — smoke 초안', () => 
   test('5. FAQ 목록 정상 로드 — 제목/검색창/아코디언 항목', async ({ page }) => {
     await page.goto(`${BASE_URL}/customer-service/faq`);
 
-    await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
+    // Typography variant='headingPc3M' — role=heading 아님
+    await expect(page.locator('span.MuiTypography-headingPc3M').filter({ hasText: 'FAQ' })).toBeVisible();
     await expect(page.getByPlaceholder('궁금한 점을 검색해 보세요.')).toBeVisible();
   });
 
@@ -158,7 +160,8 @@ test.describe('user/09 고객센터 (Customer Service) — smoke 초안', () => 
 
     await page.goto(`${BASE_URL}/customer-service/inquiry`);
 
-    await expect(page.getByRole('heading', { name: '1:1 문의내역' })).toBeVisible();
+    // Typography variant='headingPc3M' — role=heading 아님 + 사이드바 "1:1 문의내역" 링크와 충돌
+    await expect(page.locator('span.MuiTypography-headingPc3M').filter({ hasText: '1:1 문의내역' })).toBeVisible();
     await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
   });
 
@@ -178,8 +181,9 @@ test.describe('user/09 고객센터 (Customer Service) — smoke 초안', () => 
     await page.locator('a[href="/customer-service/inquiry/new"]').first().click();
     await expect(page).toHaveURL(/\/customer-service\/inquiry\/new$/);
 
-    // "문의하기" 제목 영역 확인
-    await expect(page.getByText('문의하기')).toBeVisible();
+    // InquiryEdit 페이지는 상단 Typography "1:1 문의내역" + 탭 '문의하기' + 하단 submit 버튼 '문의하기'
+    // 동일 텍스트가 tab/button 2개로 뜨므로 role=tab 으로 탭만 검증.
+    await expect(page.getByRole('tab', { name: '문의하기' })).toBeVisible();
     await expect(page.getByPlaceholder('제목을 입력해주세요')).toBeVisible();
 
     // 제목 비워둔 채 제출 → alert('제목을 입력해주세요.')
@@ -187,7 +191,7 @@ test.describe('user/09 고객센터 (Customer Service) — smoke 초안', () => 
       expect(dialog.message()).toContain('제목을 입력해주세요');
       await dialog.dismiss();
     });
-    // TODO: verify selector — 하단 "문의하기" 제출 버튼 (MedipandaButton)
-    await page.getByRole('button', { name: '문의하기' }).click();
+    // 제출 버튼 — type=submit 으로 탭과 구분
+    await page.locator('button[type="submit"]').filter({ hasText: '문의하기' }).click();
   });
 });

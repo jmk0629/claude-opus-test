@@ -201,11 +201,13 @@ test.describe('user/03 제품검색 (/products) - UI smoke 초안', () => {
     // TODO: verify selector - role 이 없으므로 alt 없으면 img locator + src 조건으로 잡아야 함
     await page.locator('img[src*="icon-search-detail"]').click();
 
-    // 상세검색 패널 내 필드 라벨
-    await expect(page.getByText('성분명', { exact: true })).toBeVisible();
-    await expect(page.getByText('제약사', { exact: true })).toBeVisible();
-    await expect(page.getByText('제품명', { exact: true })).toBeVisible();
-    await expect(page.getByText('상태', { exact: true })).toBeVisible();
+    // 상세검색 패널 내 필드 라벨 — span.MuiTypography-largeTextM 전용 (button '성분명' 과 구분).
+    const panelLabel = (text: string) =>
+      page.locator('span.MuiTypography-largeTextM').filter({ hasText: new RegExp(`^${text}$`) });
+    await expect(panelLabel('성분명')).toBeVisible();
+    await expect(panelLabel('제약사')).toBeVisible();
+    await expect(panelLabel('제품명')).toBeVisible();
+    await expect(panelLabel('상태')).toBeVisible();
 
     // 상태 필터 버튼 4개 (전체 / 취급품목 / 프로모션 / 품절)
     for (const name of ['전체', '취급품목', '프로모션', '품절']) {

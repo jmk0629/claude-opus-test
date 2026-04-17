@@ -209,13 +209,15 @@ test.describe('user/04 실적관리 (PrescriptionList)', () => {
 
   test('7) 액션: 삭제 플로우 - confirm 승인 시 DELETE API 호출', async ({ page }) => {
     let deleteCalled = false;
+    // ⚠️ DELETE 와 GET 이 같은 URL(/v1/prescriptions/partners/:id) 을 공유하므로
+    // DELETE 가 아닌 요청은 route.fallback() 으로 beforeEach 의 GET 스텁에 넘겨야 한다.
+    // route.continue() 를 쓰면 네트워크로 나가서 401 → detail 로드 실패 → 삭제 버튼이 안 뜸.
     await page.route(API.delete(SAMPLE_ITEM.id), (route: Route) => {
       if (route.request().method() === 'DELETE') {
         deleteCalled = true;
-        route.fulfill({ status: 204, body: '' });
-      } else {
-        route.continue();
+        return route.fulfill({ status: 204, body: '' });
       }
+      return route.fallback();
     });
 
     // window.confirm 자동 수락

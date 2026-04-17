@@ -88,6 +88,24 @@ test.describe('영업대행상품 (user/07_SALES_AGENCY_PRODUCT)', () => {
   });
 
   test('신청하지 않은 활성 상품은 "영업대행 신청하기" 버튼이 활성 상태', async ({ page }) => {
+    // 버튼 텍스트 분기: applied → '영업대행 신청완료' / 만료 → '종료된 상품입니다' / 그 외 → '영업대행 신청하기'
+    // 실제 시드 데이터의 applied/endDate 는 알 수 없으므로 명시적 mock 으로 고정.
+    await page.route(`**/v1/sales-agency-products/${SAMPLE_PRODUCT_ID}`, route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: SAMPLE_PRODUCT_ID,
+          clientName: '제약A',
+          productName: '상품A',
+          startDate: '2026-01-01T00:00:00Z',
+          endDate: '2099-12-31T00:00:00Z',
+          applied: false,
+          boardPostDetail: { content: '<p>본문</p>', viewsCount: 10 },
+        }),
+      }),
+    );
+
     await page.goto(`${BASE_URL}${DETAIL_PATH}`);
 
     const applyBtn = page.getByRole('button', { name: '영업대행 신청하기' });
@@ -110,11 +128,21 @@ test.describe('영업대행상품 (user/07_SALES_AGENCY_PRODUCT)', () => {
   });
 
   test('신청 완료 상태(applied=true)에서는 "영업대행 신청완료" 비활성 버튼 노출', async ({ page }) => {
-    // TODO: applied:true 응답 mock 필요
-    // await page.route(`**/v1/sales-agency-products/${SAMPLE_PRODUCT_ID}`, route =>
-    //   route.fulfill({ json: { id: SAMPLE_PRODUCT_ID, clientName: 'X', productName: 'Y',
-    //     startDate: '2026-01-01T00:00:00Z', endDate: '2099-12-31T00:00:00Z', applied: true,
-    //     boardPostDetail: { content: '<p>본문</p>', viewsCount: 10 } } }));
+    await page.route(`**/v1/sales-agency-products/${SAMPLE_PRODUCT_ID}`, route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: SAMPLE_PRODUCT_ID,
+          clientName: '제약A',
+          productName: '상품A',
+          startDate: '2026-01-01T00:00:00Z',
+          endDate: '2099-12-31T00:00:00Z',
+          applied: true,
+          boardPostDetail: { content: '<p>본문</p>', viewsCount: 10 },
+        }),
+      }),
+    );
 
     await page.goto(`${BASE_URL}${DETAIL_PATH}`);
 

@@ -23,7 +23,9 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5174';
 const API = {
   boards: '**/v1/boards?**',
   boardsFixedNotices: '**/v1/boards/notices/fixed-top**',
-  boardDetail: (id: number | string) => `**/v1/boards/${id}`,
+  // getBoardDetails 는 `?filterBlind=...&filterDeleted=...` 쿼리스트링을 붙여 호출하므로
+  // 글로브 **만으로는 매칭 실패 → regex 로 query string 포함해 매칭.
+  boardDetail: (id: number | string) => new RegExp(`/v1/boards/${id}(\\?|$)`),
   boardLike: (id: number | string) => `**/v1/boards/${id}/like`,
   comments: '**/v1/comments/**',
   reports: '**/v1/reports/**',
@@ -168,8 +170,8 @@ test.describe('user-06 커뮤니티 (MR-CSO 매칭)', () => {
     await page.getByRole('link', { name: SAMPLE_POST.title }).click();
 
     await expect(page).toHaveURL(new RegExp(`/community/mr-cso-matching/${SAMPLE_POST.id}$`));
-    // TODO: verify selector - 상세 제목은 headingPc4B Typography. text 로 매칭
-    await expect(page.getByText(SAMPLE_DETAIL.title)).toBeVisible();
+    // 상세 타이틀(headingPc4B) + 관련글 link(smallTextR) 에 동일 텍스트 중복 → 본문 title 로 스코프.
+    await expect(page.locator('span.MuiTypography-headingPc4B').filter({ hasText: SAMPLE_DETAIL.title })).toBeVisible();
   });
 
   test('5. 내 글 필터 토글: ?filterMine=true URL 파라미터가 추가됨', async ({ page }) => {
@@ -186,14 +188,15 @@ test.describe('user-06 커뮤니티 (MR-CSO 매칭)', () => {
 
     await page.goto(`${BASE_URL}/community/mr-cso-matching/${SAMPLE_POST.id}`);
 
-    await expect(page.getByText(SAMPLE_DETAIL.title)).toBeVisible();
-    // 본문은 Tiptap 내부. editor 는 setEditable(false) + setContent.
-    // TODO: verify selector - MedipandaEditorContent 가 contenteditable 로 렌더되는지 여부
+    // 상세 페이지는 본문 Typography(headingPc4B) + 하단 "관련글" 목록 link(smallTextR) 에
+    // 동일 제목이 중복 렌더됨 → 본문 타이틀은 headingPc4B 클래스로 스코프.
+    await expect(page.locator('span.MuiTypography-headingPc4B').filter({ hasText: SAMPLE_DETAIL.title })).toBeVisible();
+    // 본문은 Tiptap paragraph 로 렌더.
     await expect(page.getByText('게시글 본문입니다.')).toBeVisible();
 
-    // 좋아요/댓글/조회수 카운트 (숫자만 렌더됨 - toLocaleString)
-    await expect(page.getByText(String(SAMPLE_DETAIL.likesCount))).toBeVisible();
-    await expect(page.getByText(String(SAMPLE_DETAIL.commentCount))).toBeVisible();
+    // 좋아요/댓글/조회수 카운트 — 동일 숫자가 여러 영역에 있을 수 있어 first() 로 스코프
+    await expect(page.getByText(String(SAMPLE_DETAIL.likesCount), { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(String(SAMPLE_DETAIL.commentCount), { exact: true }).first()).toBeVisible();
   });
 
   test('7. 타인 글 상세: ⋯ 클릭 시 "신고하기" 팝오버 노출', async ({ page }) => {

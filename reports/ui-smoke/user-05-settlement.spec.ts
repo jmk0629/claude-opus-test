@@ -35,8 +35,9 @@ test.describe('user/05 SETTLEMENT — 정산 smoke', () => {
       // TODO: verify selector — 날짜 기반이라 정규식으로 매칭
       await expect(page.getByText(/\d{4}년\s*\d{1,2}월/)).toBeVisible();
 
-      // 검색 타입(Select)은 disabled 상태로 "제약사명"으로 고정
-      await expect(page.getByText('제약사명')).toBeVisible();
+      // 검색 타입(Select)은 disabled 상태로 "제약사명"으로 고정.
+      // table column header "제약사명" 과 충돌하므로 role=combobox 로 Select 자체를 집는다.
+      await expect(page.getByRole('combobox').filter({ hasText: '제약사명' })).toBeVisible();
 
       // 검색 입력 placeholder
       await expect(page.getByPlaceholder('제약사명을 검색하세요.')).toBeVisible();
@@ -66,12 +67,11 @@ test.describe('user/05 SETTLEMENT — 정산 smoke', () => {
     test('정산 목록 테이블 컬럼 헤더 렌더 (제약사명/처방금액/수수료금액 등)', async ({ page }) => {
       await page.goto(`${BASE_URL}/settlement-drug-company`);
 
-      // 테이블 헤더 컬럼 — 메뉴 문서 3-4절 기준
-      // TODO: verify selector — 첫 번째 "제약사명"은 Select label과 겹칠 수 있어 헤더 셀 범위로 좁힐 것
-      await expect(page.locator('th, td').filter({ hasText: '제약사명' }).first()).toBeVisible();
-      await expect(page.getByText('처방금액')).toBeVisible();
-      await expect(page.getByText('수수료금액')).toBeVisible();
-      await expect(page.getByText('합계금액').first()).toBeVisible();
+      // 테이블 헤더 컬럼 — role=columnheader + exact 로 부분일치(수수료금액 vs 추가수수료금액) 회피
+      await expect(page.getByRole('columnheader', { name: '제약사명', exact: true })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: '처방금액', exact: true })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: '수수료금액', exact: true })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: '합계금액', exact: true })).toBeVisible();
     });
   });
 
@@ -79,8 +79,8 @@ test.describe('user/05 SETTLEMENT — 정산 smoke', () => {
     test('페이지 진입 시 좌측 목록 + 우측 상세 placeholder 렌더', async ({ page }) => {
       await page.goto(`${BASE_URL}/settlement-list`);
 
-      // 좌측: 합계금액 라벨
-      await expect(page.getByText(/합계금액/)).toBeVisible();
+      // 좌측: "합계금액 : N" Typography 라벨. 테이블 header "합계금액" 과 충돌 → 콜론 포함 부분 매칭.
+      await expect(page.getByText(/합계금액\s*:/)).toBeVisible();
 
       // 우측: 딜러 미선택 시 안내 문구 (코드 line 471)
       await expect(page.getByText('내역을 확인하실 딜러를 선택해주세요.')).toBeVisible();
@@ -131,7 +131,9 @@ test.describe('user/05 SETTLEMENT — 정산 smoke', () => {
     test('페이지 진입 시 전체매출/거래처매출 탭 버튼 렌더', async ({ page }) => {
       await page.goto(`${BASE_URL}/sales-statistic`);
 
-      await expect(page.getByRole('link', { name: '전체매출' })).toBeVisible();
+      // /sales-statistic 진입 시 활성 탭은 "전체매출" 로 button 렌더, 비활성은 link 렌더(URL 이동용).
+      // 텍스트 존재만 검증하려면 role 무관 getByText 가 안전.
+      await expect(page.getByText('전체매출', { exact: true })).toBeVisible();
       await expect(page.getByRole('link', { name: '거래처매출' })).toBeVisible();
     });
 

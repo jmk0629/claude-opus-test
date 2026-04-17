@@ -17,10 +17,17 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { UNAUTHENTICATED_STATE } from './_fixtures';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5174';
 
 test.describe('user/01 AUTH_PAGES — 인증 페이지 smoke', () => {
+  // 인증 페이지는 **비로그인 상태**를 전제로 동작.
+  // 기본 project storageState(.auth/user.json) 를 쓰면 `/login` 이 `/` 로 즉시 redirect 되어
+  // ID/Password input 이 존재하지 않음 → 모든 Login smoke 가 placeholder not found 로 실패.
+  // UNAUTHENTICATED_STATE 로 쿠키/localStorage 를 비워 익명 세션을 강제한다.
+  test.use(UNAUTHENTICATED_STATE);
+
   test.beforeEach(async ({ page }) => {
     // 자동 로그인 localStorage 잔여물 제거 (Login.tsx useEffect 2에서 읽음)
     await page.addInitScript(() => {
