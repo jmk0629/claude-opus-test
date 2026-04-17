@@ -35,6 +35,8 @@ import {
   pageResponse,
   api,
   acceptNextDialog,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -176,9 +178,10 @@ test.describe('계약관리 > 영업대행상품 (admin/04_SALES_AGENCY_PRODUCT)
     await page.goto(`${BASE_URL_ADMIN}${LIST_PATH}`);
 
     await expect(page.getByRole('heading', { name: '영업대행상품' })).toBeVisible();
-    // TODO: verify selector — MUI Select 라벨은 InputLabel이라 getByLabel 동작 확인 필요
-    await expect(page.getByLabel('검색유형')).toBeVisible();
-    await expect(page.getByLabel('검색어')).toBeVisible();
+    // 초기값이 빈 Select 라 combobox 내부 텍스트가 없음 →
+    // 주변 FormControl 에 InputLabel "검색유형" 이 있음을 이용해 has-text 스코프.
+    await expect(page.locator('.MuiFormControl-root').filter({ hasText: '검색유형' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: '검색어' })).toBeVisible();
     await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
     await expect(page.getByRole('button', { name: '초기화' })).toBeVisible();
   });
@@ -220,13 +223,11 @@ test.describe('계약관리 > 영업대행상품 (admin/04_SALES_AGENCY_PRODUCT)
   test('목록 API 실패 시 alertError가 호출된다', async ({ page }: { page: Page }) => {
     await mockListError(page);
 
-    const dialogMessage = acceptNextDialog(page);
     await page.goto(`${BASE_URL_ADMIN}${LIST_PATH}`);
 
-    // TODO: verify — useMpModal.alertError가 window.alert로 내려간다고 가정.
-    //       MUI Dialog 컴포넌트라면 page.getByRole('dialog') 기반으로 재작성 필요.
-    const message = await dialogMessage;
-    expect(message).toContain('영업대행상품 목록을 불러오는 중 오류가 발생했습니다.');
+    // useMpModal.alertError 는 MUI Dialog 로 렌더됨(native window.alert 아님).
+    await expectMpModal(page, '영업대행상품 목록을 불러오는 중 오류가 발생했습니다.');
+    await acceptMpModal(page);
   });
 
   test('검색유형 미선택 상태에서 검색어 입력 후 검색 시 경고 alert이 뜬다', async ({ page }: { page: Page }) => {
@@ -234,14 +235,14 @@ test.describe('계약관리 > 영업대행상품 (admin/04_SALES_AGENCY_PRODUCT)
 
     await page.goto(`${BASE_URL_ADMIN}${LIST_PATH}`);
 
-    // 검색어만 입력
-    await page.getByLabel('검색어').fill('테스트');
+    // 검색어만 입력 (label=검색어 TextField)
+    await page.getByRole('textbox', { name: '검색어' }).fill('테스트');
 
-    const dialogMessage = acceptNextDialog(page);
     await page.getByRole('button', { name: '검색' }).click();
 
-    const message = await dialogMessage;
-    expect(message).toContain('검색유형을 선택하세요.');
+    // useMpModal.alert 은 MUI Dialog 로 렌더됨.
+    await expectMpModal(page, '검색유형을 선택하세요.');
+    await acceptMpModal(page);
   });
 
   test('[등록] 버튼 클릭 시 /sales-agency-products/new 경로로 이동한다', async ({ page }: { page: Page }) => {

@@ -22,15 +22,18 @@ import {
   BASE_URL_ADMIN,
   EMPTY_PAGE,
   pageResponse,
-  api,
-  acceptNextDialog,
+  expectMpModal,
+  acceptMpModal,
+  expectSnackbar,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
 // 엔드포인트 (docs/admin/05_PRESCRIPTION_MANAGEMENT.md - 처방접수)
 // ────────────────────────────────────────────────────────────────
 
-const API_PRESCRIPTIONS = api('/v1/prescriptions');
+// glob `**/v1/prescriptions` 는 `?page=...` 쿼리스트링 포함 URL 을 매칭 못함 → regex 로 교체
+// (/v1/prescriptions 뒤에 슬래시가 오면 confirm 등 다른 엔드포인트이므로 (?=\?|$) 로 종단 보장)
+const API_PRESCRIPTIONS: RegExp = /\/v1\/prescriptions(?=\?|$)/;
 const API_CONFIRM_RE: RegExp = /\/v1\/prescriptions\/\d+\/confirm/;
 
 const RECEPTIONS_URL: string = `${BASE_URL_ADMIN}/prescription-receptions`;
@@ -135,12 +138,13 @@ test.describe('admin/05 처방관리 - 처방접수 목록 (MpAdminPrescriptionR
     await expect(page.getByRole('button', { name: '검색', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '초기화', exact: true })).toBeVisible();
 
-    // 필터 라벨 (MUI InputLabel/TextField label)
-    await expect(page.getByText('접수상태', { exact: true })).toBeVisible();
-    await expect(page.getByText('검색유형', { exact: true })).toBeVisible();
-    // TODO: verify selector - DatePicker label은 MUI 내부에서 legend 로 렌더
-    await expect(page.getByText('시작일', { exact: true })).toBeVisible();
-    await expect(page.getByText('종료일', { exact: true })).toBeVisible();
+    // 필터 라벨 — 테이블 컬럼 헤더에 동일 텍스트가 있어 strict 위반. 폼 영역으로 스코프.
+    // DatePicker 는 추가로 label + legend 로 두 번 렌더되므로 .first() 로 집음.
+    const form = page.locator('form');
+    await expect(form.getByText('접수상태', { exact: true })).toBeVisible();
+    await expect(form.getByText('검색유형', { exact: true })).toBeVisible();
+    await expect(form.getByText('시작일', { exact: true }).first()).toBeVisible();
+    await expect(form.getByText('종료일', { exact: true }).first()).toBeVisible();
   });
 
   test('정상 로드: 목록 두 건(PENDING + CHECKED)이 테이블에 표시', async ({ page }) => {
@@ -156,9 +160,9 @@ test.describe('admin/05 처방관리 - 처방접수 목록 (MpAdminPrescriptionR
     await expect(page.getByRole('cell', { name: '가나제약' })).toBeVisible();
     await expect(page.getByRole('cell', { name: '다라제약' })).toBeVisible();
 
-    // CHECKED 행은 checkedAt KST 변환 값 노출 (포맷은 YYYY-MM-DD HH:mm:ss)
-    // TODO: verify selector - KST 변환 결과(UTC+9) 가 기대한 타임존인지 DOM 에서 재확인
-    await expect(page.locator('text=/2026-04-1[12]/')).toBeVisible();
+    // CHECKED 행은 checkedAt KST 변환 값 노출 (포맷은 YYYY-MM-DD HH:mm:ss).
+    // submittedAt/checkedAt 여러 셀에 매칭되므로 .first() 로 스코프.
+    await expect(page.locator('text=/2026-04-1[12]/').first()).toBeVisible();
   });
 
   test('빈 상태: API 응답 0건이면 "검색 결과가 없습니다." 렌더', async ({ page }) => {
@@ -191,19 +195,11 @@ test.describe('admin/05 처방관리 - 처방접수 목록 (MpAdminPrescriptionR
       });
     });
 
-    // useMpModal.alertError 는 내부적으로 커스텀 Modal 을 띄우므로
-    // 네이티브 window.alert 가 아닐 수 있음.
-    // TODO: verify selector - 실제 렌더가 커스텀 Dialog 면 acceptNextDialog 대신
-    //       page.getByRole('dialog') + '확인' 버튼 클릭으로 대체
-    const dialogPromise: Promise<string> = acceptNextDialog(page);
-
     await page.goto(RECEPTIONS_URL);
 
-    // 커스텀 Dialog 인 경우 에러 문구만 확인 (아래 줄 중 하나 유지)
-    await expect(page.getByText('처방접수 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible({ timeout: 5000 }).catch(async () => {
-      const msg: string = await dialogPromise;
-      expect(msg).toContain('처방접수 목록을 불러오는 중 오류가 발생했습니다.');
-    });
+    // useMpModal.alertError 는 MUI Dialog 로 렌더됨(native window.alert 아님).
+    await expectMpModal(page, '처방접수 목록을 불러오는 중 오류가 발생했습니다.');
+    await acceptMpModal(page);
 
     // 에러 후 목록은 빈 배열로 초기화되어 '검색 결과가 없습니다.' 노출
     await expect(page.getByText('검색 결과가 없습니다.', { exact: true })).toBeVisible();
@@ -215,32 +211,29 @@ test.describe('admin/05 처방관리 - 처방접수 목록 (MpAdminPrescriptionR
     const keyword = page.getByRole('textbox', { name: '검색어' });
     await keyword.fill('행복');
 
-    // TODO: verify selector - 커스텀 modal 이면 acceptNextDialog 가 동작 안 함
-    const dialogPromise: Promise<string> = acceptNextDialog(page);
     await page.getByRole('button', { name: '검색', exact: true }).click();
 
-    await expect(page.getByText('검색유형을 선택하세요.')).toBeVisible({ timeout: 3000 }).catch(async () => {
-      const msg: string = await dialogPromise;
-      expect(msg).toContain('검색유형을 선택하세요.');
-    });
+    await expectMpModal(page, '검색유형을 선택하세요.');
+    await acceptMpModal(page);
   });
 
   test('액션: PENDING 행의 접수확인 버튼 클릭 시 confirm API 호출 + refetch', async ({ page }) => {
     await page.goto(RECEPTIONS_URL);
 
-    // confirm 요청 캡처
+    // confirm 요청 캡처 — backend.ts confirmPrescription 실제 메서드는 PATCH.
     const confirmRequest: Promise<import('@playwright/test').Request> = page.waitForRequest((req) => {
-      return API_CONFIRM_RE.test(req.url()) && req.method() === 'PUT';
+      return API_CONFIRM_RE.test(req.url()) && req.method() === 'PATCH';
     });
 
-    await page.getByRole('button', { name: '접수확인', exact: true }).click();
+    // PENDING/CHECKED 행 모두 "접수확인" 버튼을 가지므로 PENDING 행(가나제약) 으로 스코프.
+    // row 의 accessible name 은 cell 내용 합으로 만들어져 부정확하므로 filter 로 hasText 매칭.
+    await page.getByRole('row').filter({ hasText: '가나제약' }).getByRole('button', { name: '접수확인', exact: true }).click();
 
     const req: import('@playwright/test').Request = await confirmRequest;
     expect(req.url()).toMatch(/\/v1\/prescriptions\/1001\/confirm/);
 
-    // 성공 스낵바 (notistack) - 한글 문구 매칭
-    // TODO: verify selector - notistack 은 role=alert 또는 MuiSnackbar 루트
-    await expect(page.getByText('접수 확인되었습니다.')).toBeVisible({ timeout: 3000 });
+    // 성공 스낵바 (notistack)
+    await expectSnackbar(page, '접수 확인되었습니다.');
   });
 
   test('권한 분기: 비관리자 세션으로 진입 시 AdminGuard 가 차단', async ({ page }) => {
@@ -257,22 +250,17 @@ test.describe('admin/05 처방관리 - 처방접수 목록 (MpAdminPrescriptionR
   test('액션: 전체선택 체크박스로 EDI 다운로드 href 가 쿼리스트링 포함하도록 변경', async ({ page }) => {
     await page.goto(RECEPTIONS_URL);
 
-    // 최초 상태: EDI 다운로드 disabled
+    // 최초 상태: EDI 다운로드 disabled (button)
     await expect(page.getByRole('button', { name: 'EDI 다운로드', exact: true })).toBeDisabled();
 
-    // 테이블 헤더 체크박스 - MUI Checkbox 는 <input type="checkbox"> 로 렌더
-    // TODO: verify selector - 헤더의 첫 checkbox 가 전체선택임을 DOM 으로 재확인
-    const allCheckbox = page.locator('thead input[type="checkbox"]').first();
-    await allCheckbox.check();
+    // MUI Checkbox 는 input 을 PrivateSwitchBase 가 감싸 클릭을 intercept.
+    // input 대신 MUI root(label) 를 클릭해야 onChange 가 발화.
+    const headerCheckbox = page.locator('thead').getByRole('checkbox').first();
+    await headerCheckbox.click();
 
-    // 활성화된 EDI 다운로드 버튼 (href 포함)
-    const ediBtn = page.getByRole('button', { name: 'EDI 다운로드', exact: true });
-    await expect(ediBtn).toBeEnabled();
-
-    // href 에 두 개 id 가 쿼리스트링으로 직렬화되어 있는지 확인
-    // MUI Button href -> 실제로 <a> 태그로 렌더되는 경우 getByRole('link') 로 접근해야 할 수 있음
-    // TODO: verify selector - MUI Button variant='contained' + href 는 링크 role 로 노출됨
+    // 전체선택 → selectedIds 가 채워지면 button 대신 <a href> 로 렌더됨(role=link).
     const ediLink = page.getByRole('link', { name: 'EDI 다운로드', exact: true });
-    await expect(ediLink).toHaveAttribute('href', /prescriptionIds=1001%2C1002|prescriptionIds=1001,1002/);
+    await expect(ediLink).toBeVisible();
+    await expect(ediLink).toHaveAttribute('href', /prescriptionIds=1001(?:%2C|,)1002/);
   });
 });
