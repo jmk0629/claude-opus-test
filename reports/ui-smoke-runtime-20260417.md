@@ -83,3 +83,31 @@
 **샘플 3개로 파이프라인 + 인증 + 리포트까지 전부 증명됨**. 통과율 48%는 "초안 단계에서 절반은 맞췄다"는 해석도, "절반은 손봐야 한다"는 해석도 모두 맞음. 실 코드 기반으로 locator/메시지 1회만 정정하면 대폭 올라갈 가능성 있음 — 그 작업은 Playwright 정식 도입 디데이에 수행.
 
 특히 **3.4의 storageState/비로그인 이슈**는 전체 스펙 설계에 영향을 주는 구조적 발견으로, 이 런타임 시도 없이는 안 드러났음. 시도 가치 입증.
+
+## 8. 후속 조치 (2026-04-17 동일 세션에서 실행) ✅
+
+리포트 5.2의 P0 항목을 즉시 실행:
+
+### 8.1 `_fixtures.ts` 헬퍼 추가
+- `expectSnackbar(page, text)` — notistack `[role='alert']` + `.SnackbarItem-message` 이중 매칭
+- `selectMuiOption(page, label, value)` — MUI Select role='combobox' → option 클릭 흐름
+- `UNAUTHENTICATED_STATE` — `test.use()` 전달용 빈 storageState 상수
+
+### 8.2 user-02 spec 구조 개편
+기존 단일 `test.describe` → 두 describe 분리:
+1. `비로그인 시나리오` (with `test.use(UNAUTHENTICATED_STATE)`)
+2. `UI smoke 초안` (로그인 상태, 기존 storageState 유지)
+
+### 8.3 재실행 결과 ✅
+
+| 실행 | 통과 | 실패 | 런타임 |
+|------|------|------|--------|
+| before | 7 | 1 | 25.8s |
+| **after** | **8** | **0** | **20.1s** |
+
+**user-02 전수 통과 달성**. `UNAUTHENTICATED_STATE` 오버라이드 패턴이 재사용 가능함을 입증 — 다른 spec의 "비로그인/로그아웃" 케이스에 같은 방식 적용 예정.
+
+### 8.4 남은 작업 (다음 세션)
+- admin-01 / admin-11 의 snackbar 실패 ~14건에 `expectSnackbar()` 적용 (8.1의 헬퍼 활용)
+- user 배치 나머지 10개 spec 실행해서 패턴 확산 확인
+- JWT refresh 자동화 (23개 전체 배치 실행용)

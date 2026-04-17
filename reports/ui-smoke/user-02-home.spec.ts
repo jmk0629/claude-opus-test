@@ -13,6 +13,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { UNAUTHENTICATED_STATE } from './_fixtures';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5174';
 
@@ -43,33 +44,37 @@ async function stubPublicApis(page: Page) {
   );
 }
 
-test.describe('user/02 Home 페이지 (/) - UI smoke 초안', () => {
+// -----------------------------------------------------------------
+// 비로그인 시나리오: project storageState 를 비워서 로그아웃 상태 강제
+// -----------------------------------------------------------------
+test.describe('user/02 Home 페이지 - 비로그인 시나리오', () => {
+  test.use(UNAUTHENTICATED_STATE);
+
   test.beforeEach(async ({ page }) => {
-    // 히어로 섹션은 position: absolute (702px left) 기반이므로 데스크톱 폭 확보
     await page.setViewportSize({ width: 1440, height: 900 });
   });
 
-  // -----------------------------------------------------------------
-  // 시나리오 1: 비로그인 정상 로드 - hero-public.svg 렌더
-  // -----------------------------------------------------------------
   test('비로그인 상태에서 홈 진입 시 hero-public.svg 와 파트너 계약 링크가 노출된다', async ({ page }) => {
     await stubPublicApis(page);
 
     await page.goto(`${BASE_URL}/`);
 
-    // 히어로 이미지 - alt='Hero Section' (Home.tsx:139 확인됨)
     const hero = page.getByAltText('Hero Section');
     await expect(hero).toBeVisible();
     await expect(hero).toHaveAttribute('src', /hero-public\.svg/);
 
-    // 비로그인 전용 파트너 계약 Link (투명 Link, to='/partner-contract')
-    // TODO: verify selector - 빈 Link라 role=link 로는 잡히지만 accessible name이 없을 수 있음
     const partnerLink = page.locator('a[href="/partner-contract"]');
     await expect(partnerLink).toBeVisible();
 
-    // CSO 전용 커뮤니티 섹션은 비로그인이면 렌더되지 않아야 함
     await expect(page.getByRole('button', { name: '신규처 매칭' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '익명게시판' })).toHaveCount(0);
+  });
+});
+
+test.describe('user/02 Home 페이지 (/) - UI smoke 초안', () => {
+  test.beforeEach(async ({ page }) => {
+    // 히어로 섹션은 position: absolute (702px left) 기반이므로 데스크톱 폭 확보
+    await page.setViewportSize({ width: 1440, height: 900 });
   });
 
   // -----------------------------------------------------------------

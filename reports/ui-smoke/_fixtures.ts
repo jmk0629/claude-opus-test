@@ -9,7 +9,7 @@
  * 사용하고, 기존 user spec은 Playwright 도입 디데이에 일괄 치환.
  */
 
-import type { Page, Dialog } from '@playwright/test';
+import { expect, type Page, type Dialog, type Locator } from '@playwright/test';
 
 // ────────────────────────────────────────────────────────────────
 // 1. 환경 상수
@@ -111,7 +111,60 @@ export const API_V1 = {
 } as const;
 
 // ────────────────────────────────────────────────────────────────
-// 5. 세션 주입 (storageState 없이 localStorage로 mock)
+// 5. snackbar / alert 검증 헬퍼 (notistack + native alert 대응)
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * notistack 스낵바가 특정 텍스트로 노출되는지 검증.
+ *
+ * notistack 기본 렌더: `div.SnackbarItem-message` 또는 `[role='alert']`.
+ * 구현이 명확하지 않으면 두 candidate 모두 검사.
+ *
+ * 사용:
+ * ```
+ * await expectSnackbar(page, '저장되었습니다');
+ * ```
+ */
+export async function expectSnackbar(page: Page, text: string | RegExp, timeout = 5000): Promise<Locator> {
+  const byRole = page.getByRole('alert').filter({ hasText: text });
+  const byClass = page.locator('.SnackbarItem-message, .notistack-MuiContent').filter({ hasText: text });
+  const any = page.locator(':is([role="alert"], .SnackbarItem-message, .notistack-MuiContent)').filter({ hasText: text });
+
+  await expect(any).toBeVisible({ timeout });
+  return byRole.or(byClass).first();
+}
+
+/**
+ * MUI Select 컴포넌트(role='combobox')에서 옵션 선택.
+ * 일반 `<select>` 와 달리 MUI는 listbox를 mount 해야 하므로 click → option 클릭.
+ *
+ * 사용:
+ * ```
+ * await selectMuiOption(page, '계약상태', '계약');
+ * ```
+ */
+export async function selectMuiOption(page: Page, labelText: string, optionText: string): Promise<void> {
+  await page.getByLabel(labelText).click();
+  await page.getByRole('option', { name: optionText }).click();
+}
+
+// ────────────────────────────────────────────────────────────────
+// 6. storageState 오버라이드 (비로그인 시나리오용)
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * test.describe 블록에서 비로그인 상태를 강제하려면:
+ * ```
+ * test.use(UNAUTHENTICATED_STATE);
+ * ```
+ * 이 옵션은 project의 storageState 를 덮어씀 → 쿠키/localStorage 비움.
+ */
+export const UNAUTHENTICATED_STATE: { storageState: { cookies: []; origins: [] } } = {
+  storageState: { cookies: [], origins: [] },
+};
+
+// ────────────────────────────────────────────────────────────────
+// 7. 세션 주입 (storageState 없이 localStorage로 mock)
 // ────────────────────────────────────────────────────────────────
 
 /**
