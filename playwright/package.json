@@ -1,0 +1,16 @@
+{
+  "name": "claude-opus-test-playwright",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Isolated Playwright config for ui-smoke specs. Uses parent repo's @playwright/test install to avoid dual resolution.",
+  "scripts": {
+    "auth:user": "playwright codegen --save-storage=.auth/user.json http://localhost:5174",
+    "auth:admin": "playwright codegen --save-storage=.auth/admin.json http://localhost:5173/admin",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:user": "playwright test --project=user",
+    "test:admin": "playwright test --project=admin",
+    "report": "playwright show-report"
+  }
+}

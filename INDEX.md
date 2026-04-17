@@ -82,6 +82,8 @@
 - [`reports/ui-smoke-batch-user-20260417.md`](reports/ui-smoke-batch-user-20260417.md) — **user 배치**: 11 spec / 99 시나리오 / 2,437 lines
 - [`reports/ui-smoke-quality-gate-20260417.md`](reports/ui-smoke-quality-gate-20260417.md) — **품질 가드**: `tsconfig.ui-smoke.json` + `_fixtures.ts` 설치 + 1건 버그 캐치
 - [`reports/ui-smoke-batch-admin-20260417.md`](reports/ui-smoke-batch-admin-20260417.md) — **admin 배치**: 12 spec / 132 시나리오 / 4,887 lines / tsc 12/12 clean
+- [`reports/ui-smoke-runtime-20260417.md`](reports/ui-smoke-runtime-20260417.md) — **실제 dev 서버 실행**: 샘플 3개(admin-01·11, user-02), 29시나리오 중 14통과(48%), storageState/snackbar/timeout 패턴 3종 식별
+- [`playwright/`](playwright/) — 격리 Playwright 러너 (config/auth/testDir 지정, 부모 `@playwright/test` 재사용)
 
 ---
 
@@ -92,7 +94,8 @@
 | 자동화 모듈 완성 | 6개 (A1/A2/A3/B2/C1/C2) + B1 대기 |
 | 에이전트 정의 (`agents/*.md`) | 9개 |
 | 슬래시 커맨드 정의 (`commands/*.md`) | 6개 |
-| 실행 리포트 (`reports/*.md`) | 10개 |
+| 실행 리포트 (`reports/*.md`) | 11개 |
+| 실제 런타임 실행 (샘플) | 3 spec / 29 시나리오 / 통과율 48% |
 | Playwright spec 초안 (참고용, `.ts`) | 23개 / 231 시나리오 / 7,324 lines |
 | 공용 픽스처 | 1개 (`reports/ui-smoke/_fixtures.ts`, ~130 lines) |
 | tsc strict 통과 상태 | ✅ 23/23 clean |
