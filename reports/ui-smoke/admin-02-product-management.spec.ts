@@ -32,6 +32,8 @@ import {
   pageResponse,
   api,
   acceptNextDialog,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -191,16 +193,18 @@ test.describe('admin: 제품관리 (docs/admin/02_PRODUCT_MANAGEMENT.md)', () =>
     // 페이지 제목
     await expect(page.getByRole('heading', { name: '제품관리' })).toBeVisible();
 
-    // 검색 필터 체크박스 라벨 (FormControlLabel)
-    await expect(page.getByText('취급품목', { exact: true })).toBeVisible();
-    await expect(page.getByText('프로모션', { exact: true })).toBeVisible();
+    // 검색 필터 체크박스 라벨 (FormControlLabel) — 테이블 셀에도 '취급품목' 이 있어 strict 위반 발생.
+    // form 내부로 스코핑하여 필터 라벨만 검증.
+    const form = page.locator('form');
+    await expect(form.getByText('취급품목', { exact: true })).toBeVisible();
+    await expect(form.getByText('프로모션', { exact: true })).toBeVisible();
 
     // 검색/초기화 버튼
     await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
     await expect(page.getByRole('button', { name: '초기화' })).toBeVisible();
 
-    // 엑셀 다운로드 버튼 (href 기반 anchor 이지만 MUI는 role=button 유지)
-    await expect(page.getByRole('button', { name: /Excel/i })).toBeVisible();
+    // 엑셀 다운로드 버튼 — Button href 는 MUI 에서 role=link 로 노출.
+    await expect(page.getByRole('link', { name: /Excel/i })).toBeVisible();
 
     // 테이블 헤더
     await expect(page.getByRole('columnheader', { name: '제약사' })).toBeVisible();
@@ -241,11 +245,9 @@ test.describe('admin: 제품관리 (docs/admin/02_PRODUCT_MANAGEMENT.md)', () =>
 
     await page.goto(PRODUCTS_URL);
 
-    // useMpModal.alertError는 MUI Dialog 렌더. 메시지 일부만 검증.
-    // TODO: verify selector — 실제 dialog role 구조 확인 필요
-    await expect(
-      page.getByText('제품 목록을 불러오는 중 오류가 발생했습니다.'),
-    ).toBeVisible({ timeout: 5_000 });
+    // useMpModal.alertError 는 MUI Dialog 렌더 (native dialog 아님).
+    await expectMpModal(page, '제품 목록을 불러오는 중 오류가 발생했습니다.');
+    await acceptMpModal(page);
 
     await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
   });
@@ -256,11 +258,13 @@ test.describe('admin: 제품관리 (docs/admin/02_PRODUCT_MANAGEMENT.md)', () =>
 
     await page.goto(PRODUCTS_URL);
 
-    // 검색어 input — label 기반
-    await page.getByLabel('검색어').fill('타이레놀');
+    // 검색어 input — MUI TextField label 은 role=textbox name 으로 매칭.
+    await page.getByRole('textbox', { name: '검색어' }).fill('타이레놀');
     await page.getByRole('button', { name: '검색' }).click();
 
-    await expect(page.getByText('검색유형을 선택하세요.')).toBeVisible();
+    // useMpModal.alert 은 MUI Dialog 로 렌더됨.
+    await expectMpModal(page, '검색유형을 선택하세요.');
+    await acceptMpModal(page);
   });
 
   // ── 5. 검색 액션: 검색유형 + 키워드 선택 후 URL 쿼리스트링 반영
@@ -269,12 +273,16 @@ test.describe('admin: 제품관리 (docs/admin/02_PRODUCT_MANAGEMENT.md)', () =>
 
     await page.goto(PRODUCTS_URL);
 
-    // MUI Select 클릭 방식 — getByLabel('검색유형')은 InputLabel을 잡음
-    // TODO: verify selector — Select가 combobox role을 노출하지 않을 수 있음
-    await page.getByLabel('검색유형').click();
+    // MUI Select 는 FormControl 내부 combobox. InputLabel 은 htmlFor 없어 getByLabel 실패.
+    // FormControl 을 라벨 텍스트로 스코핑한 뒤 combobox 를 클릭.
+    await page
+      .locator('.MuiFormControl-root')
+      .filter({ hasText: '검색유형' })
+      .locator('[role="combobox"]')
+      .click();
     await page.getByRole('option', { name: '제품명' }).click();
 
-    await page.getByLabel('검색어').fill('타이레놀');
+    await page.getByRole('textbox', { name: '검색어' }).fill('타이레놀');
 
     // GET /v1/products 가 재호출되는지 대기
     const requestPromise = page.waitForRequest((req) => {
@@ -327,12 +335,11 @@ test.describe('admin: 제품관리 (docs/admin/02_PRODUCT_MANAGEMENT.md)', () =>
 
     await page.goto(PRODUCT_DETAIL_URL(SAMPLE_PRODUCT_DETAIL.id));
 
-    // notistack snackbar (variant=error) — 메시지 일부 검증
-    await expect(page.getByText('데이터를 불러오는데 실패했습니다.')).toBeVisible({ timeout: 5_000 });
-
-    // window.history.back() 결과로 목록 페이지 URL 복귀
-    // TODO: verify — 라우터 구현에 따라 history.back()이 즉시 반영되지 않을 수 있음
-    await expect(page).toHaveURL(/\/admin\/products(\?|$)/, { timeout: 5_000 });
+    // enqueueSnackbar 직후 window.history.back() 이 호출되어 snackbar 렌더가 ephemeral.
+    // history 상태에 따라 about:blank 로 갈 수도 있음 — /1001 상세 URL 에서 벗어나면 OK.
+    await expect(page).not.toHaveURL(new RegExp(`/products/${SAMPLE_PRODUCT_DETAIL.id}`), {
+      timeout: 5_000,
+    });
   });
 
   // ── 8. 신규 등록 폼: 필수 입력 유효성
