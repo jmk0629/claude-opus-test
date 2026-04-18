@@ -30,6 +30,8 @@ import {
   pageResponse,
   api,
   acceptNextDialog,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // TODO: storageState — admin 인증 상태 저장 파일 경로는 공용 AUTH_STATE_ADMIN 사용
@@ -228,18 +230,11 @@ test.describe('admin/03 PARTNER_MANAGEMENT — 거래선관리 smoke', () => {
     test('3. API 에러: 500 응답 시 alert 후 빈 테이블', async ({ page }) => {
       await mockPartnersList(page, 'ERROR');
 
-      // alertError 모달이 뜨는 구현 (useMpModal). window.alert 가 아닐 가능성 있음.
-      // TODO: verify — useMpModal 이 MUI Dialog 기반이면 dialog 리스너 대신
-      //       `page.getByRole('dialog')` + 확인 버튼 클릭 패턴으로 교체.
-      const dialogPromise = acceptNextDialog(page);
-
       await page.goto(PARTNERS_URL);
 
-      // 구현에 따라 dialogPromise 가 해소되지 않을 수 있어 race 로 5초 대기
-      await Promise.race([
-        dialogPromise.then((msg: string) => expect(msg).toContain('거래선')),
-        page.waitForTimeout(5000),
-      ]);
+      // alertError 는 useMpModal(MUI Dialog) — native alert 아님
+      await expectMpModal(page, /거래선/);
+      await acceptMpModal(page);
 
       // 목록은 비워져야 함
       await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
@@ -258,9 +253,8 @@ test.describe('admin/03 PARTNER_MANAGEMENT — 거래선관리 smoke', () => {
       // 검색 버튼 클릭
       await page.getByRole('button', { name: '검색' }).click();
 
-      // navigate() 로 ?searchType=companyName&searchKeyword=서울의원 붙음
+      // navigate() 로 ?searchKeyword=서울의원 붙음 (searchType 은 기본값이면 생략됨)
       await expect(page).toHaveURL(/searchKeyword=/);
-      await expect(page).toHaveURL(/searchType=companyName/);
 
       // 초기화 버튼 클릭 시 URL 복원
       await page.getByRole('button', { name: '초기화' }).click();
@@ -287,7 +281,8 @@ test.describe('admin/03 PARTNER_MANAGEMENT — 거래선관리 smoke', () => {
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
       await expect(dialog.getByText('거래선 업로드')).toBeVisible();
-      await expect(dialog.getByRole('button', { name: '양식 다운로드' })).toBeVisible();
+      // MUI <Button href> 는 anchor(role=link) 로 렌더
+      await expect(dialog.getByRole('link', { name: '양식 다운로드' })).toBeVisible();
       await expect(dialog.getByText('여기에 파일을 드래그하거나 클릭하여 업로드하세요.')).toBeVisible();
 
       // 취소 버튼 닫기
@@ -336,31 +331,24 @@ test.describe('admin/03 PARTNER_MANAGEMENT — 거래선관리 smoke', () => {
       await page.goto(PARTNERS_EDIT_URL(1));
 
       // 수정 페이지 타이틀
-      // TODO: verify selector — 컴포넌트가 '거래선수정' Typography 를 사용
       await expect(page.getByText('거래선수정')).toBeVisible();
 
-      // 거래처명 입력값
-      // TODO: verify selector — 'getByDisplayValue' 는 Locator 전용이라
-      //       여기서는 textbox role + name 으로 폼 필드 접근.
-      await expect(page.locator('input[value="서울의원"]')).toBeVisible();
+      // 거래처명(institutionName) - controlled TextField, label 링크됨
+      await expect(page.getByLabel('거래처명')).toHaveValue('서울의원');
+      // 제약사명(drugCompany readonly) - label 이 값 있을 때만 렌더됨
+      await expect(page.getByLabel('제약사명')).toHaveValue('한미약품');
 
-      // 제약사명(readonly)
-      await expect(page.locator('input[value="한미약품"]')).toBeVisible();
-
-      // 문전약국 테이블에 종로약국 렌더
-      await expect(page.getByText('종로약국')).toBeVisible();
+      // 문전약국 테이블의 첫 행 약국명 TextField value='종로약국' (controlled)
+      const pharmacyTable = page.getByRole('table');
+      await expect(pharmacyTable.getByRole('textbox').first()).toHaveValue('종로약국');
     });
 
     test('9. 잘못된 partnerId: NaN 이면 alert 후 목록으로 리다이렉트', async ({ page }) => {
-      // detail 은 어차피 호출되지 않음. NaN 분기 테스트.
-      const dialogPromise = acceptNextDialog(page);
-
       await page.goto(`${BASE_URL_ADMIN}/partners/not-a-number/edit`);
 
-      await Promise.race([
-        dialogPromise.then((msg: string) => expect(msg).toContain('잘못된 접근입니다')),
-        page.waitForTimeout(5000),
-      ]);
+      // MpModal (MUI Dialog) 로 뜨고, 확인을 눌러야 navigate 실행됨
+      await expectMpModal(page, /잘못된 접근입니다/);
+      await acceptMpModal(page);
 
       await expect(page).toHaveURL(/\/admin\/partners(\/?|\?.*)$/);
     });
