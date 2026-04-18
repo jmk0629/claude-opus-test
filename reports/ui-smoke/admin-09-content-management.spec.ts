@@ -35,10 +35,10 @@ import {
   BASE_URL_ADMIN,
   EMPTY_PAGE,
   pageResponse,
-  api,
-  acceptNextDialog,
   injectTestSession,
   SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ async function seedAdminSession(page: Page): Promise<void> {
  * 시도 2개 × 각 시군구 목록을 최소한으로 stub.
  */
 async function installRegionMocks(page: Page): Promise<void> {
-  await page.route(api('/v1/region-categories/sido'), async (route: Route) => {
+  await page.route(/\/v1\/hospitals\/regions\/sido(\?|$)/, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -71,14 +71,14 @@ async function installRegionMocks(page: Page): Promise<void> {
       ]),
     });
   });
-  await page.route(api('/v1/region-categories/sido/1/sigungu'), async (route: Route) => {
+  await page.route(/\/v1\/hospitals\/regions\/sido\/1\/sigungu(\?|$)/, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([{ id: 11, name: '강남구' }]),
     });
   });
-  await page.route(api('/v1/region-categories/sido/2/sigungu'), async (route: Route) => {
+  await page.route(/\/v1\/hospitals\/regions\/sido\/2\/sigungu(\?|$)/, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -100,7 +100,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
   test.describe('개원병원페이지 (/admin/hospitals)', () => {
     test('정상 로드: 제목/검색 필터/테이블 헤더 렌더 + 삭제 버튼은 주석 처리되어 없음', async ({ page }) => {
       await installRegionMocks(page);
-      await page.route(api('/v1/hospitals'), async (route: Route) => {
+      await page.route(/\/v1\/hospitals(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -129,7 +129,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
 
     test('목록 렌더: 허가예정일 null인 병원은 "-" 표시', async ({ page }) => {
       await installRegionMocks(page);
-      await page.route(api('/v1/hospitals'), async (route: Route) => {
+      await page.route(/\/v1\/hospitals(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -167,20 +167,21 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
 
     test('에러 상태: 목록 API 실패 시 alertError 모달 메시지 표시', async ({ page }) => {
       await installRegionMocks(page);
-      await page.route(api('/v1/hospitals'), async (route: Route) => {
+      await page.route(/\/v1\/hospitals(\?|$)/, async (route: Route) => {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
       });
 
-      // TODO: verify selector — useMpModal은 커스텀 모달. role이 alertdialog/dialog인지 검증 필요.
+      // useMpModal.alertError → MpModal (MUI Dialog)
       await page.goto(`${BASE_URL_ADMIN}/hospitals`);
-      await expect(page.getByText('개원병원 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible();
+      await expectMpModal(page, '개원병원 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
   });
 
   // ───────────── CSO A to Z 목록 (MpAdminAtoZList) ─────────────
   test.describe('CSO A to Z 목록 (/admin/atoz)', () => {
     test('정상 로드: 제목/삭제(비활성)/등록 버튼 + 제목 헤더 렌더', async ({ page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -196,8 +197,8 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
       await expect(deleteButton).toBeVisible();
       await expect(deleteButton).toBeDisabled();
 
-      // 등록 버튼 — RouterLink로 /admin/atoz/new 이동
-      const registerButton = page.getByRole('link', { name: '등록' });
+      // 등록 버튼 — RouterLink로 /admin/atoz/new 이동 (exact로 다른 공지의 '...등록...'과 분리)
+      const registerButton = page.getByRole('link', { name: '등록', exact: true });
       await expect(registerButton).toBeVisible();
       await expect(registerButton).toHaveAttribute('href', /\/admin\/atoz\/new$/);
 
@@ -207,7 +208,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('목록 렌더: 제목 클릭 시 /admin/atoz/{id} 로 이동하는 링크 존재', async ({ page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -238,7 +239,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('빈 상태: API 0건 응답 시 "검색 결과가 없습니다." 표시', async ({ page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -251,7 +252,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('검색 필터: 검색어 입력 후 "검색" 클릭 시 URL에 searchKeyword 반영', async ({ page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -273,7 +274,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
   test.describe('CSO A to Z 상세 (/admin/atoz/:boardId)', () => {
     test('정상 로드: 제목/노출상태/수정 버튼 링크', async ({ page }) => {
       // 목록 API가 선행 호출되지 않도록, detail 전용 wildcard 매칭
-      await page.route(api('/v1/boards/77**'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/77(\?|$)/, async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
@@ -307,9 +308,10 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
 
     test('잘못된 URL: /admin/atoz/abc (NaN) 진입 시 alertError 후 /admin/atoz 로 이동', async ({ page }) => {
       // getBoardDetails가 호출되지 않도록 mock 불필요. alertError 후 navigate.
-      // TODO: verify selector — useMpModal alertError 모달 내부 텍스트 매칭
+      // useMpModal.alertError → MpModal (MUI Dialog)
       await page.goto(`${BASE_URL_ADMIN}/atoz/abc`);
-      await expect(page.getByText('잘못된 접근입니다.')).toBeVisible();
+      await expectMpModal(page, /잘못된 접근입니다/);
+      await acceptMpModal(page);
     });
   });
 
@@ -318,13 +320,11 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     test('등록 모드: 빈 폼 렌더 + 파일첨부 버튼 + 노출/노출범위 라디오', async ({ page }) => {
       await page.goto(`${BASE_URL_ADMIN}/atoz/new`);
 
-      // 라디오 라벨 확인 — '노출' / '미노출' / '전체' / '계약' / '미계약'
-      // TODO: verify selector — RadioGroup은 name='isExposed' / 'exposureRange' 각각.
-      //       같은 '노출' 텍스트가 Chip 등에서 중복될 수 있어 radio role로 범위 좁힘.
-      await expect(page.getByRole('radio', { name: '노출' })).toBeVisible();
+      // 라디오 라벨 확인 — '노출'은 '미노출'과 substring 충돌 → exact 필수
+      await expect(page.getByRole('radio', { name: '노출', exact: true })).toBeVisible();
       await expect(page.getByRole('radio', { name: '미노출' })).toBeVisible();
       await expect(page.getByRole('radio', { name: '전체' })).toBeVisible();
-      await expect(page.getByRole('radio', { name: '계약' })).toBeVisible();
+      await expect(page.getByRole('radio', { name: '계약', exact: true })).toBeVisible();
       await expect(page.getByRole('radio', { name: '미계약' })).toBeVisible();
 
       // 파일첨부 버튼
@@ -332,7 +332,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('수정 모드: detail API 응답으로 폼이 form.reset — 제목 TextField에 값 노출', async ({ page }) => {
-      await page.route(api('/v1/boards/77**'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/77(\?|$)/, async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
@@ -358,15 +358,15 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
       // form.reset으로 title TextField에 값이 들어와야 함
       // TODO: verify selector — MUI TextField input은 label 연결이 있으면 getByLabel 권장
       await expect(page.locator('input[value="수정 대상 제목"]')).toBeVisible();
-      // exposureRange=CONTRACTED → '계약' 라디오 선택
-      await expect(page.getByRole('radio', { name: '계약' })).toBeChecked();
+      // exposureRange=CONTRACTED → '계약' 라디오 선택 (exact로 '미계약' 제외)
+      await expect(page.getByRole('radio', { name: '계약', exact: true })).toBeChecked();
     });
   });
 
   // ───────────── 이벤트 목록 (MpAdminEventList) ─────────────
   test.describe('이벤트관리 목록 (/admin/events)', () => {
     test('정상 로드: 제목/테이블 헤더/등록 버튼 링크', async ({ page }) => {
-      await page.route(api('/v1/event-boards'), async (route: Route) => {
+      await page.route(/\/v1\/events(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -385,7 +385,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('목록 렌더: 썸네일 이미지 + 제목 링크 /admin/events/{id}', async ({ page }) => {
-      await page.route(api('/v1/event-boards'), async (route: Route) => {
+      await page.route(/\/v1\/events(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -422,7 +422,7 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
     });
 
     test('빈 상태 + 삭제 버튼 비활성화', async ({ page }) => {
-      await page.route(api('/v1/event-boards'), async (route: Route) => {
+      await page.route(/\/v1\/events(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -433,32 +433,25 @@ test.describe('admin/09 CONTENT_MANAGEMENT — 콘텐츠 관리 smoke', () => {
       await page.goto(`${BASE_URL_ADMIN}/events`);
       await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
 
-      // 이벤트 목록은 disabled 속성을 버튼에 걸지 않고 runtime alert로 처리 (`handleDelete` 진입 후 alert)
-      // 선택 없이 클릭하면 '삭제할 이벤트를 선택하세요.' alert
-      await page.route(api('/v1/event-boards/**'), async (route: Route) => {
-        // DELETE mock — 혹시라도 호출되면 캐치
-        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-      });
-
-      // TODO: verify selector — useMpModal.alert 모달 내부 텍스트 매칭
-      await page.getByRole('button', { name: '삭제' }).click();
-      await expect(page.getByText('삭제할 이벤트를 선택하세요.')).toBeVisible();
+      // 실제 코드: <Button disabled={selectedIds.length === 0}> → 선택 없을 때 비활성
+      await expect(page.getByRole('button', { name: '삭제' })).toBeDisabled();
     });
 
     test('에러 상태: 목록 API 실패 시 alertError 모달 메시지 표시', async ({ page }) => {
-      await page.route(api('/v1/event-boards'), async (route: Route) => {
+      await page.route(/\/v1\/events(\?|$)/, async (route: Route) => {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
       });
 
       await page.goto(`${BASE_URL_ADMIN}/events`);
-      await expect(page.getByText('이벤트 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible();
+      await expectMpModal(page, '이벤트 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
   });
 
   // ───────────── 이벤트 상세 (MpAdminEventDetail) ─────────────
   test.describe('이벤트 상세 (/admin/events/:eventId)', () => {
     test('정상 로드: 중첩 구조(boardPostDetail + 이벤트 전용 필드) 렌더', async ({ page }) => {
-      await page.route(api('/v1/event-boards/55**'), async (route: Route) => {
+      await page.route(/\/v1\/events\/55(\?|$)/, async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
