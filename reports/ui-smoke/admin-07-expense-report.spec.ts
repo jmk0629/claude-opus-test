@@ -29,6 +29,8 @@ import {
   api,
   injectTestSession,
   SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -105,14 +107,16 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
     await expect(page.getByText('신고상태').first()).toBeVisible();
     await expect(page.getByText('검색유형').first()).toBeVisible();
     await expect(page.getByText('유형').first()).toBeVisible();
-    await expect(page.getByLabel('시작일')).toBeVisible();
-    await expect(page.getByLabel('종료일')).toBeVisible();
+    // MUI DatePicker 는 role=group 이 라벨을 가짐 (input 과 group 두 개에 매칭되므로 role 로 스코프)
+    await expect(page.getByRole('group', { name: '시작일' })).toBeVisible();
+    await expect(page.getByRole('group', { name: '종료일' })).toBeVisible();
     await expect(page.getByLabel('검색어')).toBeVisible();
 
     // 액션 버튼
     await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
     await expect(page.getByRole('button', { name: '초기화' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Excel' })).toBeVisible();
+    // MUI <Button href target='_blank'> 는 <a role=link> 로 렌더
+    await expect(page.getByRole('link', { name: 'Excel' })).toBeVisible();
 
     // 테이블 헤더 (총 10개 컬럼)
     await expect(page.getByRole('columnheader', { name: 'No' })).toBeVisible();
@@ -160,7 +164,7 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
         eventStartAt: '2024-02-29T15:00:00Z', // KST 2024-03-01
         eventEndAt: '2024-03-30T15:00:00Z', // KST 2024-03-31
         supportAmount: 150000,
-        status: 'APPROVED',
+        status: 'COMPLETED',
       },
     ];
 
@@ -183,12 +187,11 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
     await expect(page.getByRole('cell', { name: '타이레놀' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'P-001' })).toBeVisible();
 
-    // ExpenseReportTypeLabel — 문서 예시 "샘플 제공" (실제 레이블은 backend.ts 기준 재확인)
-    // TODO: verify selector — ExpenseReportTypeLabel['SAMPLE_PROVIDE'] 실제 값 확인 필요
-    await expect(page.getByRole('cell', { name: '샘플 제공' })).toBeVisible();
+    // ExpenseReportTypeLabel['SAMPLE_PROVIDE'] = '견본품제공' (backend-helper.ts)
+    await expect(page.getByRole('cell', { name: '견본품제공' })).toBeVisible();
 
-    // ExpenseReportStatusLabel['APPROVED'] = '승인'
-    await expect(page.getByRole('cell', { name: '승인' })).toBeVisible();
+    // ExpenseReportStatusLabel['COMPLETED'] = '진행완료' (APPROVED 는 enum 에 없음)
+    await expect(page.getByRole('cell', { name: '진행완료' })).toBeVisible();
 
     // 지원금액: 150000 → "150,000원"
     await expect(page.getByRole('cell', { name: '150,000원' })).toBeVisible();
@@ -234,9 +237,8 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
     await page.goto(`${BASE_URL_ADMIN}/expense-reports`);
 
     await expect(page.getByRole('cell', { name: '- ~ -' })).toBeVisible();
-    // ExpenseReportStatusLabel['PENDING'] = '신고 중' (문서 예시 기준, 실제 레이블 재확인)
-    // TODO: verify selector — backend.ts의 ExpenseReportStatusLabel 실제 값 확인
-    await expect(page.getByRole('cell', { name: '신고 중' })).toBeVisible();
+    // ExpenseReportStatusLabel['PENDING'] = '미진행' (backend-helper.ts)
+    await expect(page.getByRole('cell', { name: '미진행' })).toBeVisible();
     // 0원 표기
     await expect(page.getByRole('cell', { name: '0원' })).toBeVisible();
   });
@@ -250,11 +252,11 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
       await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
     });
 
-    // alertError는 useMpModal 기반 커스텀 모달.
-    // TODO: verify selector — 모달 role/구조에 따라 getByRole('alertdialog') 또는
-    //       getByRole('dialog')로 범위를 좁히는 것을 권장.
+    // alertError 는 useMpModal(MUI Dialog). await alertError(...) 가 해소돼야
+    // 후속 setContents([]) 가 실행되어 '검색 결과가 없습니다.' 가 렌더됨.
     await page.goto(`${BASE_URL_ADMIN}/expense-reports`);
-    await expect(page.getByText('지출보고 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible();
+    await expectMpModal(page, '지출보고 목록을 불러오는 중 오류가 발생했습니다.');
+    await acceptMpModal(page);
     await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
   });
 
@@ -319,14 +321,14 @@ test.describe('admin/07 EXPENSE_REPORT — 지출보고관리 smoke', () => {
 
     await page.goto(`${BASE_URL_ADMIN}/expense-reports`);
 
-    const excelButton = page.getByRole('button', { name: 'Excel' });
-    await expect(excelButton).toBeVisible();
+    // MUI <Button href target='_blank'> 는 <a role=link> 로 렌더
+    const excelLink = page.getByRole('link', { name: 'Excel' });
+    await expect(excelLink).toBeVisible();
 
-    // MUI Button with href는 <a role="button"> 로 렌더 — href 속성 검증
-    // TODO: verify selector — role=button 에서 href가 조회 안되면 page.locator('a:has-text("Excel")')로 대체
-    await expect(excelButton).toHaveAttribute('href', /\/v1\/expense-reports\/excel/);
-    await expect(excelButton).toHaveAttribute('target', '_blank');
+    // 실제 backend helper 는 /v1/expense-reports/excel-download 경로 사용
+    await expect(excelLink).toHaveAttribute('href', /\/v1\/expense-reports\/excel-download/);
+    await expect(excelLink).toHaveAttribute('target', '_blank');
     // size=2^31-1 이 쿼리스트링에 포함되는지 확인
-    await expect(excelButton).toHaveAttribute('href', /size=2147483647/);
+    await expect(excelLink).toHaveAttribute('href', /size=2147483647/);
   });
 });
