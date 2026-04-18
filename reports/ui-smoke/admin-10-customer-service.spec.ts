@@ -37,6 +37,9 @@ import {
   acceptNextDialog,
   injectTestSession,
   SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
+  expectSnackbar,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -111,8 +114,8 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
       await expect(page.getByRole('heading', { name: '공지사항' })).toBeVisible();
       await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
       await expect(page.getByRole('button', { name: '초기화' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '등록' })).toBeVisible();
-      // 삭제 버튼은 선택 없을 때 disabled
+      // 등록은 RouterLink (role=link). 삭제는 Button.
+      await expect(page.getByRole('link', { name: '등록' })).toBeVisible();
       await expect(page.getByRole('button', { name: '삭제' })).toBeDisabled();
 
       // 테이블 헤더 컬럼 (문서 3-7 참조)
@@ -220,14 +223,12 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
       await stubBoardsEmpty(page);
       await page.goto(`${BASE_URL_ADMIN}/notices/new`);
 
-      // 제목은 빈 채로 저장 시도
-      // TODO: verify selector — 실제 저장 버튼 이름이 '저장'인지 '등록'인지 확인
       const saveButton = page.getByRole('button', { name: /저장|등록/ }).first();
-
-      const dialogPromise = acceptNextDialog(page);
       await saveButton.click();
-      const msg = await dialogPromise;
-      expect(msg).toMatch(/제목|내용|제약사명/);
+
+      // useMpModal.alert 은 MUI Dialog 로 렌더됨(native window.alert 아님).
+      await expectMpModal(page, /제목|내용|제약사명/);
+      await acceptMpModal(page);
     });
   });
 
@@ -239,7 +240,8 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
 
       await expect(page.getByRole('heading', { name: 'FAQ' })).toBeVisible();
       await expect(page.getByRole('button', { name: '검색' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '등록' })).toBeVisible();
+      // 등록은 RouterLink (role=link).
+      await expect(page.getByRole('link', { name: '등록' })).toBeVisible();
 
       // 문서 5-2: FAQ는 공지사항 대비 제약사명 필터가 없음
       await expect(page.getByText('제약사명')).toHaveCount(0);
@@ -319,16 +321,12 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
       await stubBoardsEmpty(page);
       await page.goto(`${BASE_URL_ADMIN}/inquiries`);
 
-      // 검색어만 입력
       await page.getByRole('textbox', { name: '검색어' }).fill('홍길동');
-
-      // submitHandler 내부 alert('검색유형을 선택하세요.')
-      // useMpModal.alert — 커스텀 모달 or native
-      // TODO: verify selector — useMpModal이 native alert가 아니면 dialog 텍스트로 변경
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '검색' }).click();
-      const msg = await dialogPromise;
-      expect(msg).toContain('검색유형을 선택');
+
+      // useMpModal.alert 은 MUI Dialog 로 렌더됨(native window.alert 아님).
+      await expectMpModal(page, /검색유형을 선택/);
+      await acceptMpModal(page);
     });
 
     test('목록 렌더: 답변완료 항목은 답변일 포함, 답변대기중은 "-"', async ({ page }) => {
@@ -421,7 +419,8 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
   test.describe('1:1 문의 상세 (/admin/inquiries/:boardId)', () => {
     // 문서 8-3: 문의 상세 → 회원 정보 → 계약 정보 순차 로드. 계약 정보는 실패해도 진행.
     test('답변 없는 문의 진입 시 "답변하기" 버튼 + 툴바 노출', async ({ page }) => {
-      await page.route(api('/v1/boards/777**'), async (route: Route) => {
+      // getBoardDetails 가 `?filterBlind=...&filterDeleted=...` 쿼리스트링을 붙이므로 regex 매칭.
+      await page.route(/\/v1\/boards\/777(\?|$)/, async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
@@ -434,10 +433,22 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
             title: '신규 문의 제목',
             content: '<p>문의 내용입니다.</p>',
             userId: 'member-1',
+            nickname: '홍길동',
+            name: '홍길동',
+            hiddenNickname: false,
             boardType: 'INQUIRY',
             hasChildren: false,
             attachments: [],
             children: [],
+            comments: [],
+            commentCount: 0,
+            likesCount: 0,
+            likedByMe: false,
+            viewsCount: 0,
+            isBlind: false,
+            memberType: 'NONE',
+            reportedByMe: false,
+            reports: [],
             noticeProperties: null,
             isExposed: true,
             exposureRange: 'ALL',
@@ -445,7 +456,7 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
           }),
         });
       });
-      await page.route(api('/v1/members/member-1'), async (route: Route) => {
+      await page.route(api('/v1/members/member-1/details'), async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -456,25 +467,35 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
           }),
         });
       });
-      await page.route(api('/v1/contracts/member-1'), async (route: Route) => {
+      await page.route(api('/v1/partner-contracts/member-1'), async (route: Route) => {
         // 계약 없음 → 404 (문서 8-3: 정상 케이스)
         await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
       });
 
       await page.goto(`${BASE_URL_ADMIN}/inquiries/777`);
 
-      await expect(page.getByText('신규 문의 제목').first()).toBeVisible();
+      // 각 readOnly TextField 를 Typography subtitle 기준으로 스코핑하여 value 검증.
+      // 컴포넌트: <Stack><Typography>{label}</Typography><TextField value={...} /></Stack>
+      // Typography 의 부모(Stack) 내부에서 textbox 를 찾는다 — xpath=.. 로 부모 이동.
+      const fieldByLabel = (label: string) =>
+        page
+          .getByText(label, { exact: true })
+          .locator('xpath=..')
+          .getByRole('textbox')
+          .first();
+
       // 답변 없으므로 "답변하기" 버튼
       await expect(page.getByRole('button', { name: '답변하기' })).toBeVisible();
-      // 회원 정보: 이름
-      await expect(page.getByText('홍길동').first()).toBeVisible();
-      // 계약 없음 → '-' 표시 (문서 8-8)
-      // TODO: verify selector — TextField readOnly value='-' 확인. 여러 '-'가 있을 수 있음
-      await expect(page.locator('input[value="-"]').first()).toBeVisible();
+      // 회원정보: `${detail.nickname}(${detail.userId})` 포맷
+      await expect(fieldByLabel('회원정보')).toHaveValue('홍길동(member-1)');
+      // 회사정보: 계약 없음 → '-'
+      await expect(fieldByLabel('회사정보')).toHaveValue('-');
+      // 제목
+      await expect(fieldByLabel('제목')).toHaveValue('신규 문의 제목');
     });
 
     test('답변 있는 문의 진입 시 "답변 수정" 버튼 노출 (툴바 숨김)', async ({ page }) => {
-      await page.route(api('/v1/boards/888**'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/888(\?|$)/, async (route: Route) => {
         if (route.request().method() !== 'GET') {
           await route.fallback();
           return;
@@ -487,6 +508,9 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
             title: '기존 답변이 있는 문의',
             content: '<p>원본 문의</p>',
             userId: 'member-2',
+            nickname: '김영희',
+            name: '김영희',
+            hiddenNickname: false,
             boardType: 'INQUIRY',
             hasChildren: true,
             attachments: [],
@@ -498,8 +522,36 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
                 content: '<p>기존 답변 본문</p>',
                 createdAt: '2024-06-11T00:00:00Z',
                 attachments: [],
+                userId: 'test-admin',
+                nickname: '테스트관리자',
+                name: '테스트관리자',
+                hiddenNickname: false,
+                boardType: 'INQUIRY',
+                hasChildren: false,
+                children: [],
+                comments: [],
+                commentCount: 0,
+                likesCount: 0,
+                likedByMe: false,
+                viewsCount: 0,
+                isBlind: false,
+                memberType: 'NONE',
+                reportedByMe: false,
+                reports: [],
+                noticeProperties: null,
+                isExposed: true,
+                exposureRange: 'ALL',
               },
             ],
+            comments: [],
+            commentCount: 0,
+            likesCount: 0,
+            likedByMe: false,
+            viewsCount: 0,
+            isBlind: false,
+            memberType: 'NONE',
+            reportedByMe: false,
+            reports: [],
             noticeProperties: null,
             isExposed: true,
             exposureRange: 'ALL',
@@ -507,7 +559,7 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
           }),
         });
       });
-      await page.route(api('/v1/members/member-2'), async (route: Route) => {
+      await page.route(api('/v1/members/member-2/details'), async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -518,7 +570,7 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
           }),
         });
       });
-      await page.route(api('/v1/contracts/member-2'), async (route: Route) => {
+      await page.route(api('/v1/partner-contracts/member-2'), async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -532,20 +584,25 @@ test.describe('admin/10 CUSTOMER_SERVICE — 고객센터 smoke', () => {
       await page.goto(`${BASE_URL_ADMIN}/inquiries/888`);
 
       await expect(page.getByRole('button', { name: '답변 수정' })).toBeVisible();
-      // 회사명 표시
-      await expect(page.locator('input[value="테스트상사"]')).toBeVisible();
+      // 회사정보 TextField 에 회사명 표시 — Typography 부모(Stack) 내부 textbox
+      const companyField = page
+        .getByText('회사정보', { exact: true })
+        .locator('xpath=..')
+        .getByRole('textbox')
+        .first();
+      await expect(companyField).toHaveValue('테스트상사');
     });
 
     test('데이터 로드 실패: 문의 상세 API 500 → 에러 스낵바 + 이전 페이지 이동', async ({ page }) => {
-      await page.route(api('/v1/boards/9999**'), async (route: Route) => {
+      // 쿼리스트링(?filterBlind=...&filterDeleted=...) 포함 가능 — regex 매칭.
+      await page.route(/\/v1\/boards\/9999(\?|$)/, async (route: Route) => {
         await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
       });
 
+      // 에러 시 enqueueSnackbar 후 `window.history.back()` 로 즉시 navigate 됨.
+      // Snackbar 렌더링이 ephemeral 하므로 URL 이 /admin/inquiries/9999 를 벗어나는 것으로 검증.
       await page.goto(`${BASE_URL_ADMIN}/inquiries/9999`);
-
-      // enqueueSnackbar 호출 — notistack 기반 (문서 8-3)
-      // TODO: verify selector — notistack snackbar는 role이 명확하지 않음. 텍스트 매칭.
-      await expect(page.getByText('문의 정보를 불러오는데 실패했습니다.')).toBeVisible();
+      await expect(page).not.toHaveURL(/\/admin\/inquiries\/9999/, { timeout: 5000 });
     });
   });
 });
