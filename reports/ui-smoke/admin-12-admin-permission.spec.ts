@@ -28,10 +28,10 @@ import {
   BASE_URL_ADMIN,
   EMPTY_PAGE,
   pageResponse,
-  api,
-  acceptNextDialog,
   injectTestSession,
   SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -79,18 +79,40 @@ async function seedAdminSession(page: Page): Promise<void> {
 }
 
 // SUPER_ADMIN 세션 주입 (수정 모드 접근 허용)
+// useSession 은 서버의 whoAmI 응답으로 role 을 판단하므로 /v1/auth/me 를 mock 하여 SUPER_ADMIN 강제
 async function seedSuperAdminSession(page: Page): Promise<void> {
-  // TODO: storageState — 실제 최고관리자 세션 구조를 확인 후 교체
   await injectTestSession(page, {
     ...SESSION_PRESETS.csoApproved,
     role: 'SUPER_ADMIN',
     userId: 'test-super-admin',
   });
+  await page.route(/\/v1\/auth\/me(\?|$)/, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        userId: 'test-super-admin',
+        name: '최고관리자',
+        email: 'super@medipanda.co.kr',
+        phoneNumber: '01099998888',
+        role: 'SUPER_ADMIN',
+        accountStatus: 'ACTIVE',
+      }),
+    });
+  });
+  // SUPER_ADMIN 본인의 permissions 조회도 가로채서 지연 방지
+  await page.route(/\/v1\/members\/admins\/test-super-admin\/permissions(\?|$)/, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ permissions: [] }),
+    });
+  });
 }
 
 /** 기본 GET mock 설치 — 각 테스트에서 page.route()로 override 가능 */
 async function installListMocks(page: Page, rows: AdminRow[] = []): Promise<void> {
-  await page.route(api('/v1/user-members'), async (route: Route) => {
+  await page.route(/\/v1\/members(\?|$)/, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
@@ -156,8 +178,8 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       await page.goto(`${BASE_URL_ADMIN}/admins`);
 
       // 아이디 셀
-      await expect(page.getByRole('cell', { name: 'admin01' })).toBeVisible();
-      await expect(page.getByRole('cell', { name: 'superadmin' })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'admin01', exact: true })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'superadmin', exact: true })).toBeVisible();
 
       // 관리자명 링크 (edit 링크 연결 확인)
       const editLink = page.getByRole('link', { name: '관리자홍길동' });
@@ -178,15 +200,14 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       await page.goto(`${BASE_URL_ADMIN}/admins`);
 
       await page.getByLabel('검색어').fill('홍길동');
-
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '검색' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('검색유형을 선택하세요.');
+
+      await expectMpModal(page, '검색유형을 선택하세요.');
+      await acceptMpModal(page);
     });
 
-    test('에러 처리: GET /v1/user-members 500 응답 시 alertError', async ({ page }) => {
-      await page.route(api('/v1/user-members'), async (route: Route) => {
+    test('에러 처리: GET /v1/members 500 응답 시 alertError', async ({ page }) => {
+      await page.route(/\/v1\/members(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 500,
           contentType: 'application/json',
@@ -194,10 +215,9 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
         });
       });
 
-      const dialogPromise = acceptNextDialog(page);
       await page.goto(`${BASE_URL_ADMIN}/admins`);
-      const message = await dialogPromise;
-      expect(message).toContain('관리자 목록을 불러오는 중 오류가 발생했습니다.');
+      await expectMpModal(page, '관리자 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
 
     test('등록 버튼 → /admin/admins/new 라우팅', async ({ page }) => {
@@ -223,7 +243,7 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       // 텍스트 필드 (label 기반)
       await expect(page.getByLabel('관리자 명')).toBeVisible();
       await expect(page.getByLabel('아이디')).toBeVisible();
-      await expect(page.getByLabel('패스워드', { exact: true })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: '패스워드', exact: true })).toBeVisible();
       await expect(page.getByLabel('패스워드 확인')).toBeVisible();
       await expect(page.getByLabel('이메일')).toBeVisible();
       // TODO: verify selector — 연락처 라벨은 '연락처*' (별표 포함)
@@ -254,10 +274,9 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
     test('유효성: 관리자 명 미입력 시 alert', async ({ page }) => {
       await page.goto(`${BASE_URL_ADMIN}/admins/new`);
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('관리자 명은 필수입니다.');
+      await expectMpModal(page, '관리자 명은 필수입니다.');
+      await acceptMpModal(page);
     });
 
     test('유효성: 패스워드 불일치 시 alert', async ({ page }) => {
@@ -265,13 +284,12 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
 
       await page.getByLabel('관리자 명').fill('신규관리자');
       await page.getByLabel('아이디').fill('newadmin');
-      await page.getByLabel('패스워드', { exact: true }).fill('password123');
+      await page.getByRole('textbox', { name: '패스워드', exact: true }).fill('password123');
       await page.getByLabel('패스워드 확인').fill('password999');
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('패스워드가 일치하지 않습니다.');
+      await expectMpModal(page, '패스워드가 일치하지 않습니다.');
+      await acceptMpModal(page);
     });
 
     test('유효성: 이메일 형식 불일치 시 alert', async ({ page }) => {
@@ -279,14 +297,13 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
 
       await page.getByLabel('관리자 명').fill('신규관리자');
       await page.getByLabel('아이디').fill('newadmin');
-      await page.getByLabel('패스워드', { exact: true }).fill('password123');
+      await page.getByRole('textbox', { name: '패스워드', exact: true }).fill('password123');
       await page.getByLabel('패스워드 확인').fill('password123');
       await page.getByLabel('이메일').fill('invalid-email');
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('올바른 이메일 형식이 아닙니다.');
+      await expectMpModal(page, '올바른 이메일 형식이 아닙니다.');
+      await acceptMpModal(page);
     });
 
     test('유효성: 권한 미선택 시 alert', async ({ page }) => {
@@ -294,22 +311,21 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
 
       await page.getByLabel('관리자 명').fill('신규관리자');
       await page.getByLabel('아이디').fill('newadmin');
-      await page.getByLabel('패스워드', { exact: true }).fill('password123');
+      await page.getByRole('textbox', { name: '패스워드', exact: true }).fill('password123');
       await page.getByLabel('패스워드 확인').fill('password123');
       await page.getByLabel('이메일').fill('new@medipanda.co.kr');
       await page.getByLabel('연락처*').fill('01012345678');
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('최소 하나 이상의 권한을 선택하세요.');
+      await expectMpModal(page, '최소 하나 이상의 권한을 선택하세요.');
+      await acceptMpModal(page);
     });
 
-    test('저장 성공: POST /v1/signup-by-admin → 성공 alert + 목록 이동', async ({ page }) => {
+    test('저장 성공: POST /v1/members/admins → 성공 alert + 목록 이동', async ({ page }) => {
       await installListMocks(page, []);
       let capturedBody: unknown = null;
 
-      await page.route(api('/v1/signup-by-admin'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admins(\?|$)/, async (route: Route) => {
         if (route.request().method() === 'POST') {
           capturedBody = JSON.parse(route.request().postData() ?? '{}');
           await route.fulfill({
@@ -326,22 +342,20 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
 
       await page.getByLabel('관리자 명').fill('신규관리자');
       await page.getByLabel('아이디').fill('newadmin');
-      await page.getByLabel('패스워드', { exact: true }).fill('password123');
+      await page.getByRole('textbox', { name: '패스워드', exact: true }).fill('password123');
       await page.getByLabel('패스워드 확인').fill('password123');
       await page.getByLabel('이메일').fill('new@medipanda.co.kr');
       await page.getByLabel('연락처*').fill('01012345678');
       await page.getByLabel('회원관리').check();
 
-      const successDialog = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await successDialog;
-      expect(message).toContain('관리자가 등록되었습니다.');
+      await expectMpModal(page, '관리자가 등록되었습니다.');
+      await acceptMpModal(page);
 
       // 목록으로 이동
       await expect(page).toHaveURL(/\/admin\/admins(\?|$)/);
 
       // PERMISSION_MANAGEMENT 가 payload 에 자동 추가되는지 검증
-      // TODO: verify selector — AdminPermission enum 값 매핑 확인 (키 vs 값)
       const body = capturedBody as { permissions?: string[] } | null;
       expect(body?.permissions).toEqual(
         expect.arrayContaining(['MEMBER_MANAGEMENT', 'PERMISSION_MANAGEMENT']),
@@ -349,7 +363,7 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
     });
 
     test('저장 실패: 아이디 중복 시 alert("이미 사용중인 아이디입니다.")', async ({ page }) => {
-      await page.route(api('/v1/signup-by-admin'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admins(\?|$)/, async (route: Route) => {
         if (route.request().method() === 'POST') {
           await route.fulfill({
             status: 400,
@@ -365,16 +379,15 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
 
       await page.getByLabel('관리자 명').fill('중복관리자');
       await page.getByLabel('아이디').fill('dupadmin');
-      await page.getByLabel('패스워드', { exact: true }).fill('password123');
+      await page.getByRole('textbox', { name: '패스워드', exact: true }).fill('password123');
       await page.getByLabel('패스워드 확인').fill('password123');
       await page.getByLabel('이메일').fill('dup@medipanda.co.kr');
       await page.getByLabel('연락처*').fill('01011112222');
       await page.getByLabel('회원관리').check();
 
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await dialogPromise;
-      expect(message).toContain('이미 사용중인 아이디입니다.');
+      await expectMpModal(page, '이미 사용중인 아이디입니다.');
+      await acceptMpModal(page);
     });
   });
 
@@ -384,7 +397,7 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       await seedAdminSession(page);
 
       // detail/permissions API는 접근 차단 전이므로 mock만 설치
-      await page.route(api('/v1/members/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admin01\/details(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -393,10 +406,11 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
             name: SAMPLE_ADMIN.name,
             email: SAMPLE_ADMIN.email,
             phoneNumber: SAMPLE_ADMIN.phoneNumber,
+            role: SAMPLE_ADMIN.role,
           }),
         });
       });
-      await page.route(api('/v1/permissions/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admins\/admin01\/permissions(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -404,17 +418,16 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
         });
       });
 
-      const dialogPromise = acceptNextDialog(page);
       await page.goto(`${BASE_URL_ADMIN}/admins/admin01/edit`);
-      const message = await dialogPromise;
-      expect(message).toContain('최고관리자만 관리자 편집이 가능합니다.');
+      await expectMpModal(page, '최고관리자만 관리자 편집이 가능합니다.');
+      await acceptMpModal(page);
       // NOTE: window.history.back() 동작은 테스트 러너가 이전 페이지를 보유한 경우에만 검증 가능
     });
 
     test('SUPER_ADMIN 정상 로드: 기존 데이터 폼 채움 + 아이디 disabled', async ({ page }) => {
       await seedSuperAdminSession(page);
 
-      await page.route(api('/v1/members/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admin01\/details(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -423,10 +436,11 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
             name: SAMPLE_ADMIN.name,
             email: SAMPLE_ADMIN.email,
             phoneNumber: SAMPLE_ADMIN.phoneNumber,
+            role: SAMPLE_ADMIN.role,
           }),
         });
       });
-      await page.route(api('/v1/permissions/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admins\/admin01\/permissions(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -456,11 +470,11 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       await expect(page.getByLabel('제품관리')).not.toBeChecked();
     });
 
-    test('수정 저장: PUT /v1/members/{userId}/by-admin 호출 + password null 처리', async ({ page }) => {
+    test('수정 저장: PATCH /v1/members/admins/{userId} 호출 + password null 처리', async ({ page }) => {
       await seedSuperAdminSession(page);
       await installListMocks(page, []);
 
-      await page.route(api('/v1/members/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admin01\/details(\?|$)/, async (route: Route) => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
             status: 200,
@@ -470,13 +484,14 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
               name: SAMPLE_ADMIN.name,
               email: SAMPLE_ADMIN.email,
               phoneNumber: SAMPLE_ADMIN.phoneNumber,
+              role: SAMPLE_ADMIN.role,
             }),
           });
           return;
         }
         await route.fallback();
       });
-      await page.route(api('/v1/permissions/admin01'), async (route: Route) => {
+      await page.route(/\/v1\/members\/admins\/admin01\/permissions(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -485,8 +500,8 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       });
 
       let capturedBody: unknown = null;
-      await page.route(api('/v1/members/admin01/by-admin'), async (route: Route) => {
-        if (route.request().method() === 'PUT') {
+      await page.route(/\/v1\/members\/admins\/admin01(\?|$)/, async (route: Route) => {
+        if (route.request().method() === 'PATCH') {
           capturedBody = JSON.parse(route.request().postData() ?? '{}');
           await route.fulfill({
             status: 200,
@@ -504,10 +519,9 @@ test.describe('admin/12 ADMIN_PERMISSION — 권한관리 smoke', () => {
       // 권한 추가
       await page.getByLabel('제품관리').check();
 
-      const successDialog = acceptNextDialog(page);
       await page.getByRole('button', { name: '저장' }).click();
-      const message = await successDialog;
-      expect(message).toContain('관리자 권한이 수정되었습니다.');
+      await expectMpModal(page, '관리자 권한이 수정되었습니다.');
+      await acceptMpModal(page);
 
       // 비밀번호 필드 비워둔 채 저장 → null 전송
       const body = capturedBody as
