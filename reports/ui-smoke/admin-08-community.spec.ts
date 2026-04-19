@@ -31,10 +31,10 @@ import {
   BASE_URL_ADMIN,
   EMPTY_PAGE,
   pageResponse,
-  api,
-  acceptNextDialog,
   injectTestSession,
   SESSION_PRESETS,
+  expectMpModal,
+  acceptMpModal,
 } from './_fixtures';
 
 // ────────────────────────────────────────────────────────────────
@@ -54,30 +54,22 @@ async function seedAdminSession(page: Page): Promise<void> {
 /**
  * 커뮤니티 메뉴가 공유하는 fetch 실패 안전망.
  * 특정 테스트에서 override 하지 않은 엔드포인트는 빈 페이지로 응답.
+ * - (\?|$) 앵커로 쿼리스트링/끝을 허용하되 `/v1/boards/777` 같은 상세는 제외.
  */
 async function installBaseMocks(page: Page): Promise<void> {
-  // 이용자/포스트/댓글/블라인드 목록 공통 fallback (각 테스트에서 덮어쓰기 가능)
-  const fallbacks: string[] = [
-    '/v1/board-members',
-    '/v1/boards',
-    '/v1/comment-members',
-    '/v1/blind-posts',
+  const fallbacks: RegExp[] = [
+    /\/v1\/boards\/members(\?|$)/,
+    /\/v1\/boards(\?|$)/,
+    /\/v1\/comments(\?|$)/,
+    /\/v1\/blind-posts(\?|$)/,
   ];
-  for (const path of fallbacks) {
-    await page.route(api(path), async (route: Route) => {
-      // 구체 path-with-id(예: /v1/boards/123)는 fallback 대상 아님
-      const url = route.request().url();
-      // 끝이 path로 끝나거나 query만 붙은 경우에만 처리
-      const pathOnly = url.split('?')[0];
-      if (pathOnly.endsWith(path)) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(EMPTY_PAGE),
-        });
-        return;
-      }
-      await route.fallback();
+  for (const pattern of fallbacks) {
+    await page.route(pattern, async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(EMPTY_PAGE),
+      });
     });
   }
 }
@@ -95,7 +87,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
   // ───────────── 이용자 관리 ─────────────
   test.describe('이용자 관리 (/admin/community-users)', () => {
     test('정상 로드: 제목/검색 필터/테이블 헤더 렌더', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/board-members'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/members(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -121,7 +113,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('빈 상태: API 0건 응답 시 "검색 결과가 없습니다." 표시', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/board-members'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/members(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -134,7 +126,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('목록 렌더: 이용자 1건 통계 + 연락처 포맷(010-XXXX-XXXX)', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/board-members'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/members(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -165,16 +157,16 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
       await expect(page.getByRole('cell', { name: '길동이' })).toBeVisible();
       // 연락처 포맷 변환
       await expect(page.getByRole('cell', { name: '010-1234-5678' })).toBeVisible();
-      // 통계 숫자
-      await expect(page.getByRole('cell', { name: '12' })).toBeVisible();
-      await expect(page.getByRole('cell', { name: '34' })).toBeVisible();
+      // 통계 숫자 (exact: true — 연락처 '010-1234-5678' 같은 substring 매치 방지)
+      await expect(page.getByRole('cell', { name: '12', exact: true })).toBeVisible();
+      await expect(page.getByRole('cell', { name: '34', exact: true })).toBeVisible();
     });
   });
 
   // ───────────── 포스트 관리 목록 ─────────────
   test.describe('포스트 관리 (/admin/community-posts)', () => {
     test('정상 로드: 제목/필터/블라인드 버튼(비활성 상태) 렌더', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -202,7 +194,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('검색 필터: 검색유형 미선택 + 키워드 입력 시 alert', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -214,27 +206,15 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
 
       // 검색어만 입력 (검색유형은 기본 '')
       await page.getByRole('textbox', { name: '검색어' }).fill('테스트');
-
-      // useMpModal.alert가 window.alert/confirm이 아닌 MUI Dialog일 수 있음.
-      // window.alert 기반이면 acceptNextDialog, MUI 기반이면 role=dialog로 수정.
-      // TODO: verify — useMpModal 내부 구현 확인 후 둘 중 하나로 교체
-      const dialogPromise = acceptNextDialog(page);
       await page.getByRole('button', { name: '검색' }).click();
 
-      try {
-        const msg = await Promise.race([
-          dialogPromise,
-          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('no window dialog')), 1500)),
-        ]);
-        expect(msg).toContain('검색유형');
-      } catch {
-        // fallback: MUI Dialog 텍스트 노출
-        await expect(page.getByText('검색유형을 선택하세요.')).toBeVisible();
-      }
+      // useMpModal.alert 는 MpModal 기반 (window.alert 아님)
+      await expectMpModal(page, '검색유형을 선택하세요.');
+      await acceptMpModal(page);
     });
 
     test('목록 렌더: Chip(게시판유형) + RouterLink(제목) + 계약여부 Y/N', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -272,7 +252,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('빈 상태: 0건 응답 시 "검색 결과가 없습니다." 표시', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -285,7 +265,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('에러 상태: API 500 응답 시 alertError 모달 노출', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards'), async (route: Route) => {
+      await page.route(/\/v1\/boards(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 500,
           contentType: 'application/json',
@@ -295,16 +275,15 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
 
       await page.goto(`${BASE_URL_ADMIN}/community-posts`);
 
-      // useMpModal.alertError는 MUI Dialog로 가정. 실제 구현 확인 필요.
-      // TODO: verify — window.alert라면 acceptNextDialog로 교체
-      await expect(page.getByText('포스트 목록을 불러오는 중 오류가 발생했습니다.')).toBeVisible();
+      await expectMpModal(page, '포스트 목록을 불러오는 중 오류가 발생했습니다.');
+      await acceptMpModal(page);
     });
   });
 
   // ───────────── 포스트 상세 ─────────────
   test.describe('포스트 상세 (/admin/community-posts/:boardId)', () => {
     test('정상 로드: 3탭(포스트/댓글/신고기록) 렌더 + 기본 tab=post', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards/777'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/777(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -335,7 +314,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('탭 전환: 댓글 탭 클릭 시 URL ?tab=comments 로 변경', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/boards/777'), async (route: Route) => {
+      await page.route(/\/v1\/boards\/777(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -373,7 +352,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
   // ───────────── 댓글 관리 ─────────────
   test.describe('댓글 관리 (/admin/community-comments)', () => {
     test('정상 로드: 제목 + 댓글유형 필터 + 블라인드 버튼(비활성)', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/comment-members'), async (route: Route) => {
+      await page.route(/\/v1\/comments(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -390,7 +369,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('목록 렌더: 댓글 내용 말줄임 + 블라인드 버튼 활성화', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/comment-members'), async (route: Route) => {
+      await page.route(/\/v1\/comments(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -428,7 +407,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
   // ───────────── 블라인드 관리 ─────────────
   test.describe('블라인드 관리 (/admin/community-blinds)', () => {
     test('정상 로드: 제목 + 글유형 필터 + 블라인드 해제 버튼(비활성)', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/blind-posts'), async (route: Route) => {
+      await page.route(/\/v1\/blind-posts(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -453,7 +432,7 @@ test.describe('admin/08 COMMUNITY — 커뮤니티 관리 smoke', () => {
     });
 
     test('목록 + 선택: 1건 체크 시 "블라인드 해제" 버튼 활성화', async ({ page }: { page: Page }) => {
-      await page.route(api('/v1/blind-posts'), async (route: Route) => {
+      await page.route(/\/v1\/blind-posts(\?|$)/, async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
