@@ -259,3 +259,29 @@ user 배치 완주 직후 동일 프로토콜로 admin 배치 실행. admin-01/1
 | admin-04-sales-agency-product | 3 | user-07 applied/endDate mock 패턴 재활용 |
 
 user 배치에서 축적한 패턴 라이브러리(route.fallback / regex URL / Typography span 스코프 / UNAUTHENTICATED_STATE / input[name] 셀렉터 / mock key 정합)가 대부분 재사용 가능할 것으로 예상. 우선순위는 고치기 쉬운 순서: admin-04 → admin-05 → admin-10 → admin-02 → admin-03 → admin-07 → admin-06 → admin-09 → admin-12 → admin-08.
+
+### 9.12 admin 배치 완주 — 138 passed / 1 skip / 0 failed (5.5분, 2026-04-20)
+
+9.11 에서 식별한 74건을 모두 해결. 본 세션에서 직접 손본 spec 은 admin-06/07/08/09/12. 나머지 admin-02/03/04/05/10/11 은 직전 세션 혹은 다른 브랜치에서 이미 0 failed 상태였음을 재검증.
+
+| Spec | 이전 실패 | 현재 | 커밋 |
+|------|----------|------|------|
+| admin-06-settlement-management | 12 | **14/14** ✅ | 79b37d0 |
+| admin-07-expense-report | 5 | **11/11** ✅ | (기존) |
+| admin-08-community | 7 | **14/14** ✅ | 775aade |
+| admin-09-content-management | 11 | **16/16** ✅ | 8a3b630 |
+| admin-12-admin-permission | 14 | **16/16** ✅ | 61b82fd |
+
+**공통 fix 패턴** (admin 배치 전반에 걸쳐 재사용):
+1. `api('/v1/XXX')` glob → `/\/v1\/XXX(\?|$)/` regex — `?page=0&size=20` 쿼리스트링 매치 허용 (Playwright glob 은 `?` 미매칭)
+2. `acceptNextDialog(page)` + `dialog.message()` → `expectMpModal(page, text)` + `acceptMpModal(page)` — 실제 코드는 `useMpModal()` (MUI Dialog) 이지 `window.alert` 가 아님
+3. 실제 백엔드 경로와 drift 된 URL 교정 — `/v1/user-members` → `/v1/members`, `/v1/signup-by-admin` → `/v1/members/admins`, `/v1/permissions/{id}` → `/v1/members/admins/{id}/permissions`, `/v1/members/{id}` → `/v1/members/{id}/details`, `PUT /v1/members/{id}/by-admin` → `PATCH /v1/members/admins/{id}`, `/v1/board-members` → `/v1/boards/members`, `/v1/comment-members` → `/v1/comments`, `/v1/event-boards` → `/v1/events`, `/v1/region-categories/sido` → `/v1/hospitals/regions/sido`, `/v1/settlement-partners/{id}` → `/v1/settlements/partners/{id}`, `/v1/performance-stats` → `/v1/settlements/performance`
+4. MUI strict-mode: `노출` ↔ `미노출`, `계약` ↔ `미계약`, `관리자` ↔ `관리자홍길동`, `admin01` ↔ `admin01@...`, `12` ↔ `010-1234-5678` → `{ exact: true }`
+5. MUI required TextField 는 label 에 ` *` 접미사가 붙으므로 `getByLabel('패스워드', { exact: true })` 실패 → `getByRole('textbox', { name: '패스워드', exact: true })` (accessible name 은 접미사 없음)
+6. `<main>` 내부 backlink 고르기: `main.getByRole('link').first()` 은 logout 아이콘을 먼저 잡음 → `main a[href="/admin/settlements"]` 로 구체화
+7. JS 부동소수점: `Math.floor(110000 / 1.1) = 99999` (not 100000)
+8. `useSession` 은 `whoAmI()` (`GET /v1/auth/me`) 로 role 을 결정 → SUPER_ADMIN 전제 테스트는 `/v1/auth/me` 도 mock 하여 실제 로그인 유저의 role 에 구애받지 않게 함
+9. 실제 버튼이 `disabled={selectedIds.length === 0}` 로 정적으로 막혀있다면 runtime alert 검증 대신 `toBeDisabled()` 로 교체
+10. 배치 전 JWT refresh 선행 (`.auth/*.json` 30분 access token 만료로 기준선 오염 사례 다수)
+
+**user 배치 재검증 (2026-04-20)**: 98 passed / 1 skip / 0 failed (3.2분). 회귀 없음.
