@@ -56,32 +56,59 @@
 
 ## 2. Phase 2 산출물 (메뉴별 풀스택 지도)
 
-처리 메뉴: **3 / 23** (대표 메뉴 샘플 — 전체는 후속 실행).
+처리 메뉴: **23 / 23** (전체).
 
-| 메뉴 | 풀스택 지도 | 매트릭스 행 | 리스크 |
+| 메뉴 | 풀스택 지도 | 매트릭스 | 리스크 |
 |------|------------|---:|---:|
+| `admin/01` 회원 관리 | [`bridge/admin-01-member-fullstack.md`](bridge/admin-01-member-fullstack.md) | 9 | 7 |
+| `admin/02` 제품 관리 | [`bridge/admin-02-product-fullstack.md`](bridge/admin-02-product-fullstack.md) | 10 | 5 |
+| `admin/03` 거래처 관리 | [`bridge/admin-03-partner-fullstack.md`](bridge/admin-03-partner-fullstack.md) | 17 | 12 |
+| `admin/04` 영업대행 상품 | [`bridge/admin-04-sales-agency-fullstack.md`](bridge/admin-04-sales-agency-fullstack.md) | 11 | 5+ |
 | `admin/05` 처방 관리 | [`bridge/admin-05-prescription-fullstack.md`](bridge/admin-05-prescription-fullstack.md) | 15 | 6 (Critical 1) |
 | `admin/06` 정산 관리 | [`bridge/admin-06-settlement-fullstack.md`](bridge/admin-06-settlement-fullstack.md) | 16 | 8 |
-| `user/04` 처방 관리 (사용자) | [`bridge/user-04-prescription-fullstack.md`](bridge/user-04-prescription-fullstack.md) | 7 | 10 (High 2) |
+| `admin/07` 지출 보고서 | [`bridge/admin-07-expense-report-fullstack.md`](bridge/admin-07-expense-report-fullstack.md) | 15 | 4+ |
+| `admin/08` 커뮤니티 관리 | [`bridge/admin-08-community-fullstack.md`](bridge/admin-08-community-fullstack.md) | — | — |
+| `admin/09` 콘텐츠 관리 | [`bridge/admin-09-content-fullstack.md`](bridge/admin-09-content-fullstack.md) | 17 | P0 1건 (`DELETE /v1/hospitals/all` 무인증 TRUNCATE) |
+| `admin/10` 고객 지원 | [`bridge/admin-10-customer-service-fullstack.md`](bridge/admin-10-customer-service-fullstack.md) | — | P0 1건 (IDOR `/partner-contracts/{userId}`) |
+| `admin/11` 배너 관리 | [`bridge/admin-11-banner-fullstack.md`](bridge/admin-11-banner-fullstack.md) | 4 | 5 (GET 권한 부재) |
+| `admin/12` 관리자 권한 | [`bridge/admin-12-permission-fullstack.md`](bridge/admin-12-permission-fullstack.md) | — | P1 4건 (RBAC 모델 신뢰성) |
+| `user/01` 인증 | [`bridge/user-01-auth-fullstack.md`](bridge/user-01-auth-fullstack.md) | 17 | HIGH 4 + P0 1 (비번변경 인증 누락) |
+| `user/02` 홈 | [`bridge/user-02-home-fullstack.md`](bridge/user-02-home-fullstack.md) | 6 | 8 |
+| `user/03` 제품 검색 | [`bridge/user-03-product-search-fullstack.md`](bridge/user-03-product-search-fullstack.md) | 2 | 8 |
+| `user/04` 처방 관리 | [`bridge/user-04-prescription-fullstack.md`](bridge/user-04-prescription-fullstack.md) | 7 | 10 (High 2) |
+| `user/05` 정산 | [`bridge/user-05-settlement-fullstack.md`](bridge/user-05-settlement-fullstack.md) | 12 | 12 (IDOR 2건) |
+| `user/06` 커뮤니티 | [`bridge/user-06-community-fullstack.md`](bridge/user-06-community-fullstack.md) | 12 | CRIT 1 + HIGH 2 |
+| `user/07` 영업대행 상품 | [`bridge/user-07-sales-agency-fullstack.md`](bridge/user-07-sales-agency-fullstack.md) | 3 | 5 |
+| `user/08` 이벤트 | [`bridge/user-08-event-fullstack.md`](bridge/user-08-event-fullstack.md) | 3 | P0 2 (RBAC, XOR/PII) |
+| `user/09` 고객 지원 | [`bridge/user-09-customer-service-fullstack.md`](bridge/user-09-customer-service-fullstack.md) | 7 | CRIT 1 (타인 명의 작성) |
+| `user/10` 마이페이지 | [`bridge/user-10-mypage-fullstack.md`](bridge/user-10-mypage-fullstack.md) | 9 | 6 (RSA 우회·SELF 상태 임의 변경) |
+| `user/11` 파트너 계약 | [`bridge/user-11-partner-contract-fullstack.md`](bridge/user-11-partner-contract-fullstack.md) | 2 | 10 (IDOR 2건) |
 
-세 지도에서 **공통적으로 발견된 패턴**:
-- **프론트 docs vs 실제 컨트롤러 경로 drift** — 예: 프론트 docs는 `/v1/prescription-partners`, 실서버는 `/v1/prescriptions/partners` (admin/05 R3, admin/06 정규화 6건).
-- **클라이언트 가드 의존** — `user/04` 의 처방 메뉴는 `@RequiredRole` 부재로 owner-scope 강제가 서버에 없고 프론트 가드만 차이를 만든다 (`user-04-...md:§4`).
-- **BaseEntity 미상속 엔티티** — `prescription_partner` 등 핵심 거래 테이블이 `created_at/modified_at` 미보유 (admin/05 R4, admin/06 R6).
+### 전 메뉴 횡단으로 반복 발견된 패턴
+
+1. **`@RequiredRole` 미적용 컨트롤러 다수** — `Banner` GET, `EventBoard`, `SalesAgencyProductBoard`, `PartnerContract` 사용자 EP, `ExpenseReport`, `Prescription`, `Hospital` 등에서 클라이언트 가드만 권한을 강제. `05-security.md:153-164` 표와 일치.
+2. **프론트 docs ↔ 실서버 경로 drift** — `/v1/prescription-partners` vs `/v1/prescriptions/partners`, `excel` vs `excel-download`, `event-boards` 4건, banner PUT vs PATCH 등. `/sync-api-docs` 재실행 필요.
+3. **owner-scope 미강제 IDOR** — `admin-10` `/partner-contracts/{userId}`, `user-05` `/settlements/partners`·`/products`, `user-06` `/comments/{userId}`·`/reports/{userId}`, `user-09` 타인 명의 작성, `user-11` `GET /partner-contracts/{userId}` 등.
+4. **BaseEntity 미상속 거래 테이블** — `prescription_partner`, `partner_contract_file`, `banner_file` 등 감사 컬럼 부재.
+5. **인메모리 큐·캐시 분산 부정합** — Caffeine·AtomicReference·LinkedBlockingQueue 가 multi-replica·운영 모니터링 부재. `user/02` 홈 위젯, `user/06` 좋아요·조회수가 직접 영향.
+6. **소프트 삭제 / 고아 S3 파일 누수** — `admin/11` 배너 이미지 교체, `admin/04` 썸네일 교체, `admin/07` 지출보고 첨부 등에서 구 S3 객체 방치.
+7. **Enum drift (FE↔BE)** — `PartnerContractStatus`(admin/01·user/11), `ExpenseReport status`(admin/07), `BannerScope`(admin/11), `exposureRange`(admin/04) 등.
 
 ---
 
 ## 3. 다음 단계
 
-1. **나머지 20개 메뉴 cross-ref**: `/ingest-medipanda-backend |admin/01,admin/02,...` 처럼 필터 호출. (대표 3건으로 패턴 검증 완료, 나머지는 동일 파이프라인 재사용.)
-2. **HIGH 리스크 5건 → 이슈/PR**: 특히 RISK-01(Refresh Token), RISK-05(`/v1/hospitals/bulk-upsert`), RISK-04(Swagger 평문)는 외주사 인계 즉시 합의 필요. 응답 임시 차단(WAF) 후 백엔드 수정.
-3. **`/sync-api-docs` 재실행**: 백엔드 `backend.ts` 재생성 → 프론트 docs 경로 drift 자동 보정 (admin/05·06 에서 발견된 경로 불일치는 docs 측 수정 필요).
-4. **메뉴별 cross-ref 정기화**: 백엔드 PR 머지 후 영향 메뉴만 cross-ref 재생성하는 운영 패턴으로 격상.
+1. **HIGH/CRIT 리스크 우선순위 처리** — 메뉴 횡단으로 동일 패턴(IDOR · @RequiredRole 미적용 · TRUNCATE 무인증) 이 반복되므로 보안 픽스를 묶어서 PR. 특히 다음은 외주사 인계 즉시 합의 필요:
+   - 보안 Top 5 (Phase 1 §0): Refresh Token DB 미비교, `/v1/hospitals/bulk-upsert` 무인증, Swagger/BasicAuth 평문, Settlement 트랜잭션 누락, 프로모션 토큰 XOR.
+   - Phase 2 추가 발견: `DELETE /v1/hospitals/all` 무인증 TRUNCATE (admin/09), `/partner-contracts/{userId}` IDOR (admin/10·user/11), `/comments/{userId}` & `/reports/{userId}` IDOR (user/06), 타인 명의 게시글 (user/09).
+2. **`/sync-api-docs` 재실행** — 23개 메뉴 cross-ref 에서 경로 drift 가 거의 모든 메뉴에서 발견됨. backend.ts 재생성 후 docs 측 일괄 보정 필요.
+3. **Enum 드리프트 정리** — `PartnerContractStatus`/`ExpenseReportStatus`/`BannerScope`/`exposureRange` 등 프론트 ↔ 백엔드 enum 합의. `/verify-frontend-contract` 정기 실행으로 유지.
+4. **메뉴별 cross-ref 정기화** — 백엔드 PR 머지 후 영향 메뉴만 재생성하는 운영 패턴(`/ingest-medipanda-backend |...|메뉴 필터`)으로 격상.
 
 ---
 
 ## 4. 메타
 
-- **에이전트 호출**: Phase 1 = 6 에이전트 병렬 (controller-/service-/repository-/domain-/security-/config-analyzer), Phase 2 = 3 에이전트 병렬 (cross-ref-writer 폴백 = general-purpose, 본 세션 시작 시점에 cross-ref-writer 심볼릭 링크 미등록 상태였음).
+- **에이전트 호출**: Phase 1 = 6 에이전트 병렬 (controller-/service-/repository-/domain-/security-/config-analyzer), Phase 2 = 23 에이전트 (대표 3 + 후속 20, 4-병렬 × 5 배치). cross-ref-writer 서브에이전트가 본 세션에 미등록되어 general-purpose 폴백 사용.
 - **읽기 전용**: medipanda-api / medipanda-web-test 어느 쪽에도 Write 하지 않음. 모든 산출물은 `claude-opus-test/reports/` 하위.
 - **민감정보 마스킹**: DB 비밀번호, JWT secret, BasicAuth 자격증명, RSA private key 모두 `***` 처리.

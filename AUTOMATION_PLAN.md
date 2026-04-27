@@ -169,7 +169,7 @@ commands/
 | C2 `/ui-smoke user` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-user-20260417.md` (11 spec, 99 scenarios) |
 | C2 품질 가드 (tsc + 픽스처) | ✅ main 직접 커밋 | — | `reports/ui-smoke-quality-gate-20260417.md` (`tsconfig.ui-smoke.json`, `_fixtures.ts`) |
 | C2 `/ui-smoke admin` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-admin-20260417.md` (12 spec, 132 scenarios, tsc 12/12) |
-| B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 대표 3 메뉴) |
+| B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 **23/23 메뉴 풀스택 지도**) |
 
 ---
 
