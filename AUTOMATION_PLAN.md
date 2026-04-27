@@ -170,6 +170,7 @@ commands/
 | C2 품질 가드 (tsc + 픽스처) | ✅ main 직접 커밋 | — | `reports/ui-smoke-quality-gate-20260417.md` (`tsconfig.ui-smoke.json`, `_fixtures.ts`) |
 | C2 `/ui-smoke admin` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-admin-20260417.md` (12 spec, 132 scenarios, tsc 12/12) |
 | B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 **23/23 메뉴 풀스택 지도**) |
+| D1 `/db-impact` | ✅ main 직접 커밋 | — | `reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md` (test fixture: V1_5 audit columns, CRIT 1·HIGH 2 검출) |
 
 ---
 
