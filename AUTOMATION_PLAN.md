@@ -171,6 +171,7 @@ commands/
 | C2 `/ui-smoke admin` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-admin-20260417.md` (12 spec, 132 scenarios, tsc 12/12) |
 | B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 **23/23 메뉴 풀스택 지도**) |
 | D1 `/db-impact` | ✅ main 직접 커밋 | — | `reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md` (test fixture: V1_5 audit columns, CRIT 1·HIGH 2 검출) |
+| D3 `/dep-health` | ✅ main 직접 커밋 | — | `reports/dep-health-20260427-medipanda-web.md` (medipanda-web baseline: prod 51/dev 19, CRIT 0·HIGH 5·MED 14·LOW 37, high CVE 11 모두 fixAvailable) |
 
 ---
 
