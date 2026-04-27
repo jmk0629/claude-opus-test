@@ -172,6 +172,7 @@ commands/
 | B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 **23/23 메뉴 풀스택 지도**) |
 | D1 `/db-impact` | ✅ main 직접 커밋 | — | `reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md` (test fixture: V1_5 audit columns, CRIT 1·HIGH 2 검출) |
 | D3 `/dep-health` | ✅ main 직접 커밋 | — | `reports/dep-health-20260427-medipanda-web.md` (medipanda-web baseline: prod 51/dev 19, CRIT 0·HIGH 5·MED 14·LOW 37, high CVE 11 모두 fixAvailable) |
+| D2 `/i18n-extract` | ⏭️ 스킵 (보류) | — | medipanda-web 은 i18n 라이브러리/API/사전 파일 모두 0건 (한국어 단일 SaaS). 향후 다국어 도입 시 설계 |
 
 ---
 
