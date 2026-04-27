@@ -169,7 +169,7 @@ commands/
 | C2 `/ui-smoke user` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-user-20260417.md` (11 spec, 99 scenarios) |
 | C2 품질 가드 (tsc + 픽스처) | ✅ main 직접 커밋 | — | `reports/ui-smoke-quality-gate-20260417.md` (`tsconfig.ui-smoke.json`, `_fixtures.ts`) |
 | C2 `/ui-smoke admin` 배치 | ✅ main 직접 커밋 | — | `reports/ui-smoke-batch-admin-20260417.md` (12 spec, 132 scenarios, tsc 12/12) |
-| B1 `/ingest-medipanda-backend` | ⬜ 백엔드 소스 대기 | — | — |
+| B1 `/ingest-medipanda-backend` | ✅ main 직접 커밋 | — | `reports/ingest-medipanda-backend-20260427.md` (Phase 1 6-agent + Phase 2 대표 3 메뉴) |
 
 ---
 
@@ -194,5 +194,5 @@ commands/
 
 ## 다음 단계 제안
 
-- P0/P2 1라운드 완료(A1/A2/A3/C1). 다음은 **B2 `/playbook-status`** — 백엔드 인수 디데이 전 체크리스트 자동화.
-- B1 `/ingest-medipanda-backend`는 실제 소스 수령 후 착수.
+- P0/P1/P2 1라운드 완료 (A1/A2/A3/B1/B2/C1/C2). 잔여 메뉴 20개 cross-ref 는 `/ingest-medipanda-backend |admin/...,user/...` 필터 호출로 점증.
+- B1 결과의 HIGH 리스크 5건(`reports/ingest-medipanda-backend-20260427.md` §0)은 외주사 인계 즉시 협의 후 PR 트리거 필요.
