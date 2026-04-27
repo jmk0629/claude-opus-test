@@ -57,3 +57,11 @@ jobs:
           find test/agents agents -name '*.md' 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
           echo "### Commands" >> $GITHUB_STEP_SUMMARY
           find test/commands commands -name '*.md' 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
+
+  lint-harness:
+    name: Lint harness (drift / cross-ref / report presence)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run scripts/lint-harness.sh
+        run: bash scripts/lint-harness.sh

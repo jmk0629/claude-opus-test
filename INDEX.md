@@ -85,21 +85,42 @@
 - [`reports/ui-smoke-runtime-20260417.md`](reports/ui-smoke-runtime-20260417.md) — **실제 dev 서버 실행**: admin-01/11 완주 + **user 배치 98 passed / 1 skip / 0 fail** (§9.9). JWT 만료 2차 incident 프로토콜(§9.10), MpModal vs notistack 구분, `route.fallback()`/regex URL/`span.MuiTypography-*` 스코프 등 패턴 누적
 - [`playwright/`](playwright/) — 격리 Playwright 러너 (config/auth/testDir 지정, 부모 `@playwright/test` 재사용)
 
+### D1. `/db-impact` — DB 마이그레이션 SQL → 영향 메뉴 역추적
+
+DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 페이지 사전 점검. 마이그레이션 적용 전 단계.
+
+- [`agents/migration-impact-analyzer.md`](agents/migration-impact-analyzer.md) — 5단계 SQL 파싱·매핑 에이전트 (sonnet)
+- [`commands/db-impact.md`](commands/db-impact.md) — Phase 0 사전점검 + Phase 1 analyzer 1회 호출
+- [`reports/db-impact-fixtures/V1_5__add_audit_columns_to_partner_tables.sql`](reports/db-impact-fixtures/) — 첫 테스트 픽스처 (BaseEntity 보강)
+- [`reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md`](reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md) — 첫 실행: 영향 테이블 3 / 영향 메뉴 7, **CRIT 1·HIGH 2·MED 3·LOW 2** 검출 (file_kind 컬럼명 drift 사전 발견)
+
+### D3. `/dep-health` — npm 의존성 신선도 + 보안 분기 점검
+
+`npm outdated --json` + `npm audit --json` 합쳐 위험 등급(CRIT/HIGH/MED/LOW). 외주 인수 직후 + 분기 1회 베이스라인.
+
+- [`agents/dep-health-analyzer.md`](agents/dep-health-analyzer.md) — 5단계 outdated/audit 합치는 에이전트 (sonnet)
+- [`commands/dep-health.md`](commands/dep-health.md) — Phase 0 node_modules 검증 + Phase 1 analyzer 1회 호출
+- [`reports/dep-health-20260427-medipanda-web.md`](reports/dep-health-20260427-medipanda-web.md) — 첫 베이스라인: 직접 prod 51/dev 19, **CRIT 0·HIGH 5·MED 14·LOW 37**, 보안 critical 0 / high 11 (모두 fixAvailable)
+
+> **D2 `/i18n-extract`**: 보류. medipanda-web 은 i18n 라이브러리/API/사전 모두 0건 (한국어 단일 SaaS).
+
 ---
 
-## 2. 누적 지표 (2026-04-17 기준)
+## 2. 누적 지표 (2026-04-28 기준)
 
 | 항목 | 값 |
 |------|----|
-| 자동화 모듈 완성 | 6개 (A1/A2/A3/B2/C1/C2) + B1 대기 |
-| 에이전트 정의 (`agents/*.md`) | 9개 |
-| 슬래시 커맨드 정의 (`commands/*.md`) | 6개 |
-| 실행 리포트 (`reports/*.md`) | 11개 |
-| 실제 런타임 실행 (user 배치) | 11 spec / **98 passed / 1 skip / 0 fail** (3.2분) |
-| 실제 런타임 실행 (admin 샘플) | admin-01/11 완주 |
-| Playwright spec 초안 (참고용, `.ts`) | 23개 / 231 시나리오 / 7,324 lines |
-| 공용 픽스처 | 1개 (`reports/ui-smoke/_fixtures.ts`, ~130 lines) |
+| 자동화 모듈 완성 | **9개** (A1/A2/A3 + B1/B2 + C1/C2 + D1/D3) — D2 보류 |
+| 에이전트 정의 (`agents/*.md`) | **12개** (route-auditor, api-doc-writer, impact-scanner, contract-checker, screen/api/db-mapper, cross-ref-writer, test-writer, migration-impact-analyzer, dep-health-analyzer 외) |
+| 슬래시 커맨드 정의 (`commands/*.md`) | **9개** |
+| 실행 리포트 (`reports/*.md`) | **15+개** (B1 23 bridge + ingest summary + findings-backlog + D1·D3 + ui-smoke 외) |
+| Bridge 풀스택 지도 (`reports/bridge/`) | **23개** (admin 12 + user 11) |
+| 발견 사항 백로그 통합 | **198건** (P0 8 / P1 34 / P2 41 / P3 57+ / P4 3) |
+| 실제 런타임 실행 (user 배치) | 11 spec / 98 passed / 1 skip / 0 fail (3.2분) |
+| 실제 런타임 실행 (admin 배치) | 12 spec / **138/139** 그린 |
+| Playwright spec 초안 (참고용, `.ts`) | 23개 / 237 시나리오 / 7,324+ lines |
 | tsc strict 통과 상태 | ✅ 23/23 clean |
+| CI 자기 검증 (`scripts/lint-harness.sh`) | ✅ frontmatter + 문서 drift + cross-ref + report presence |
 
 ---
 
