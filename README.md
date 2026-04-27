@@ -18,7 +18,7 @@ claude-opus-test/
 ├── OPERATIONS_GUIDE.md     9 커맨드 운영 루틴 (트리거·주기·담당)
 ├── AUTOMATION_PLAN.md      전체 자동화 로드맵 (A1~D3, P0~P3)
 ├── agents/                 서브에이전트 정의 (cross-ref/migration-impact/dep-health 등)
-├── commands/               슬래시 커맨드 정의 (9개: A1/A2/A3 + B1/B2 + C1/C2 + D1/D3)
+├── commands/               슬래시 커맨드 정의 (10개: A1/A2/A3 + B1/B2/B3 + C1/C2 + D1/D3)
 ├── reports/                실제 실행 결과 아카이브
 │   └── ui-smoke/           Playwright spec 초안 23개 + _fixtures.ts
 ├── tsconfig.ui-smoke.json  spec strict tsc 게이트 (`npm run typecheck:ui-smoke`)
@@ -37,6 +37,7 @@ claude-opus-test/
 | **A3** | `/audit-menu-routes` | menus ↔ routes ↔ guards 정합성 (보안 구멍 탐지) | ✅ main |
 | **B1** | `/ingest-medipanda-backend` | 외주 백엔드 인수 6-agent + 23 메뉴 풀스택 지도 + cross-ref | ✅ main |
 | **B2** | `/playbook-status` | `INTERNALIZATION_PLAYBOOK.md` 진행도 자동 체크 | ✅ main |
+| **B3** | `/findings-backlog` | bridge §5 + ingest §0 → 발견 사항 백로그 자동 추출 (수동 1~2h → 자동 5분) | ✅ main |
 | **C1** | `/pr-context` | PR 변경 파일 → 영향 화면/API/DB 지도 | ✅ main |
 | **C2** | `/ui-smoke` | 메뉴 문서 기반 Playwright 시나리오 (user 11 + admin 12 배치 완료, tsc 게이트 포함) | ✅ main |
 | **D1** | `/db-impact` | DB 마이그레이션 SQL → 영향 메뉴/EP/Repository 역추적 | ✅ main |

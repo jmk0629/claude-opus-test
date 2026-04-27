@@ -102,6 +102,15 @@ DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 
 - [`commands/dep-health.md`](commands/dep-health.md) — Phase 0 node_modules 검증 + Phase 1 analyzer 1회 호출
 - [`reports/dep-health-20260427-medipanda-web.md`](reports/dep-health-20260427-medipanda-web.md) — 첫 베이스라인: 직접 prod 51/dev 19, **CRIT 0·HIGH 5·MED 14·LOW 37**, 보안 critical 0 / high 11 (모두 fixAvailable)
 
+### B3. `/findings-backlog` — bridge §5 + ingest §0 → 발견 사항 백로그 자동 추출
+
+수동 통합 1~2시간을 자동 5분으로 단축. B1 분기 재실행 직후마다 호출하여 신규/해소/등급 변경 추적.
+
+- [`agents/findings-extractor.md`](agents/findings-extractor.md) — 23 bridge §5 + ingest §0/§2/§3 추출 + 키워드 fallback 등급 + 횡단 패턴 묶음 (sonnet)
+- [`commands/findings-backlog.md`](commands/findings-backlog.md) — Phase 0 사전점검 (bridge 23 + ingest 존재) + Phase 1 extractor 호출 + Phase 2 인용 무결성 검증
+- [`reports/findings-backlog-20260427.md`](reports/findings-backlog-20260427.md) — 수동 baseline (198건)
+- [`reports/findings-backlog-20260428-auto-validation.md`](reports/findings-backlog-20260428-auto-validation.md) — 자동 도구 검증 리포트 (재현 +9건/4.5%, 횡단 7종 100% 일치, 메뉴 매핑 drift 1건 발견·수정)
+
 > **D2 `/i18n-extract`**: 보류. medipanda-web 은 i18n 라이브러리/API/사전 모두 0건 (한국어 단일 SaaS).
 
 ---
@@ -110,12 +119,12 @@ DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 
 
 | 항목 | 값 |
 |------|----|
-| 자동화 모듈 완성 | **9개** (A1/A2/A3 + B1/B2 + C1/C2 + D1/D3) — D2 보류 |
-| 에이전트 정의 (`agents/*.md`) | **12개** (route-auditor, api-doc-writer, impact-scanner, contract-checker, screen/api/db-mapper, cross-ref-writer, test-writer, migration-impact-analyzer, dep-health-analyzer 외) |
-| 슬래시 커맨드 정의 (`commands/*.md`) | **9개** |
-| 실행 리포트 (`reports/*.md`) | **15+개** (B1 23 bridge + ingest summary + findings-backlog + D1·D3 + ui-smoke 외) |
+| 자동화 모듈 완성 | **10개** (A1/A2/A3 + B1/B2/B3 + C1/C2 + D1/D3) — D2 보류 |
+| 에이전트 정의 (`agents/*.md`) | **13개** (route-auditor, api-doc-writer, impact-scanner, contract-checker, screen/api/db-mapper, cross-ref-writer, test-writer, migration-impact-analyzer, dep-health-analyzer, findings-extractor 외) |
+| 슬래시 커맨드 정의 (`commands/*.md`) | **10개** |
+| 실행 리포트 (`reports/*.md`) | **16+개** (B1 23 bridge + ingest summary + findings-backlog 2종 + D1·D3 + ui-smoke 외) |
 | Bridge 풀스택 지도 (`reports/bridge/`) | **23개** (admin 12 + user 11) |
-| 발견 사항 백로그 통합 | **198건** (P0 8 / P1 34 / P2 41 / P3 57+ / P4 3) |
+| 발견 사항 백로그 통합 | **198건 (수동) / 207건 (자동, +4.5%)** — P0 8/15 · P1 34/51 · P2 41/65 · P3 57/70 · P4 3/6 |
 | 실제 런타임 실행 (user 배치) | 11 spec / 98 passed / 1 skip / 0 fail (3.2분) |
 | 실제 런타임 실행 (admin 배치) | 12 spec / **138/139** 그린 |
 | Playwright spec 초안 (참고용, `.ts`) | 23개 / 237 시나리오 / 7,324+ lines |

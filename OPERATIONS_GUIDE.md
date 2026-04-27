@@ -1,6 +1,6 @@
 # 하네스 운영 가이드
 
-> 9 커맨드 × 트리거 × 주기 × 담당. 신규 입사자는 본 문서 → `INDEX.md` → `AUTOMATION_PLAN.md` 순으로 읽으면 됨.
+> 10 커맨드 × 트리거 × 주기 × 담당. 신규 입사자는 본 문서 → `INDEX.md` → `AUTOMATION_PLAN.md` 순으로 읽으면 됨.
 
 ---
 
@@ -8,7 +8,7 @@
 
 `AUTOMATION_PLAN.md` 가 **왜·무엇** 이라면, 본 문서는 **언제·누가·어떻게** 다.
 
-도구만 있고 운영 루틴이 없으면 한두 달 뒤 stale. 9 커맨드를 어떤 트리거에 어떤 주기로 누가 돌릴지 한 페이지에 고정한다.
+도구만 있고 운영 루틴이 없으면 한두 달 뒤 stale. 10 커맨드를 어떤 트리거에 어떤 주기로 누가 돌릴지 한 페이지에 고정한다.
 
 ---
 
@@ -21,6 +21,7 @@
 | **A3** | `/audit-menu-routes` | menus.ts 또는 routes-*.tsx 변경 PR | PR 시점 + 스프린트 1회 | FE 리드 | `menus.ts` + `routes-{admin,user}.tsx` + `guards/` | `reports/audit-menu-routes-*.md` | guard 누락/orphan 메뉴 픽스 |
 | **B1** | `/ingest-medipanda-backend` | 외주 백엔드 인계 직후 + 분기 1회 | 분기 + 인계 시 | 백엔드 리드 | `medipanda-api/` 전체 | `reports/backend-ingestion-*/` 6개 + `reports/bridge/*.md` 23개 + `reports/ingest-medipanda-backend-*.md` | findings-backlog 재추출 |
 | **B2** | `/playbook-status` | INTERNALIZATION_PLAYBOOK.md 변경 시 | 주 1회 | 팀 리드 | `INTERNALIZATION_PLAYBOOK.md` | `reports/playbook-status-*.md` | 미진행 항목 담당 배정 |
+| **B3** | `/findings-backlog` | B1 재실행 직후 + 분기 1회 | 분기 + B1 직후 | 팀 리드 | `reports/bridge/*.md` 23 + `reports/ingest-medipanda-backend-*.md` | `reports/findings-backlog-*.md` | P0 외주사 즉시 통보 + P1 묶음 PR 4종 배정 |
 | **C1** | `/pr-context` | PR 생성 시 (자동) | PR 시점 | PR 작성자 | PR diff (변경 파일 목록) | PR 코멘트 또는 `reports/pr-context-*.md` | 리뷰어 영향 메뉴/EP/DB 파악 후 리뷰 |
 | **C2** | `/ui-smoke` | 야간 + PR 시점 + 메뉴별 변경 시 | 야간 자동 + PR | QA / FE | 메뉴 문서(`docs/admin\|user/NN_*.md`) + 로그인 픽스처 | `reports/ui-smoke-*.md` + `reports/ui-smoke/*.spec.ts` | 실패 spec 픽스 또는 픽스처 갱신 |
 | **D1** | `/db-impact` | 마이그레이션 SQL 작성 직후 (적용 전) | 마이그레이션마다 | 백엔드 리드 | DDL `.sql` 파일 | `reports/db-impact-*.md` | CRIT/HIGH 메뉴 백엔드/프론트 코드 동기화 PR |
@@ -61,7 +62,7 @@
 ```
 □ /dep-health                            ─ CVE/EOL/메이저 격차 베이스라인 갱신
 □ /ingest-medipanda-backend              ─ 백엔드 풀스택 지도 재생성
-□ findings-backlog 재추출 + diff          ─ 신규 발견·해소 trace
+□ /findings-backlog                       ─ bridge 갱신본에서 신규/해소 자동 추출
 ```
 
 ### 2.5 외주 백엔드 인계 직후 (즉시)
@@ -69,7 +70,7 @@
 ```
 □ /ingest-medipanda-backend                                   ─ 첫 풀스택 지도 (Phase 1+2)
 □ /dep-health                                                  ─ 의존성 신선도 베이스라인
-□ findings-backlog (수동 추출)                                 ─ P0 항목 즉시 통보
+□ /findings-backlog                                            ─ P0 항목 자동 추출 → 외주사 즉시 통보
 □ /sync-api-docs + /verify-frontend-contract + /audit-menu-routes  ─ 드리프트 0 검증
 ```
 
@@ -87,7 +88,7 @@
 
 ```
 B1 /ingest-medipanda-backend  ─┐
-                                ├─→ findings-backlog (수동/스크립트 추출)
+                                ├─→ B3 /findings-backlog  (bridge §5 + ingest §0 자동 추출)
                                 │
                                 ├─→ C1 /pr-context  (영향 메뉴 매핑 인덱스)
                                 │
@@ -111,7 +112,7 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 1. **B1** `/ingest-medipanda-backend` — 베이스라인 풀스택 지도 (가장 무거움, 1회당 3~6시간)
 2. **D3** `/dep-health` — 의존성 신선도 (5~10분)
 3. **A1·A2·A3** — 프론트 측 드리프트 3종 (각 5~15분)
-4. **findings-backlog** — B1 결과 정리 (수동, 1~2시간)
+4. **B3** `/findings-backlog` — B1 결과 자동 통합 (자동, 5분)
 5. **C1** `/pr-context` — 다음 PR 부터 자동 적용
 6. **C2** `/ui-smoke` — 메뉴 문서가 정비된 후 (메뉴별 spec 작성, 메뉴당 30~60분)
 7. **B2** `/playbook-status` — INTERNALIZATION_PLAYBOOK.md 작성 후
@@ -133,7 +134,7 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | /playbook-status (주 1회 × 4) | □ | 정체 항목 알림 | B2 |
 | /db-impact (마이그레이션마다) | □ | CRIT/HIGH 사전 차단 | D1 |
 | /dep-health (분기말 1회) | □ | high CVE 카운트 ↓ | D3 |
-| findings-backlog 진척 (월 1회 리뷰) | □ | P0 → 0, P1 ↓ | — |
+| /findings-backlog (B1 직후 + 월 1회 리뷰) | □ | P0 → 0, P1 ↓ | B3 |
 | B1 재실행 (분기 1회) | □ | bridge 갱신 | B1 |
 
 ---
@@ -147,7 +148,7 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | **CI 통합** | 모든 게 수동 실행 | GitHub Actions workflow 작성 (A1·A2·C1 PR 자동 트리거) |
 | **회귀 베이스라인 비교** | 매번 새 리포트 | D3·A1·A2 두 번째 실행 시 첫 실행 diff 자동 생성 |
 | **D1 gradle 지원** | npm 만 점검 | medipanda-api 의존성 점검 (Spring Boot BOM 처리) |
-| **findings-backlog 자동화** | 수동 통합 | `/findings-backlog` 커맨드 화 — bridge §5 자동 추출 |
+| **회귀 베이스라인 비교** | 매번 새 리포트 | A1·A2·D3 두 번째 실행 시 첫 실행 diff 자동 생성 |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
 | **알림 채널 통합** | Slack 미연동 | P0 발견 시 #incident 자동 알림, ui-smoke 회귀 알림 |
 
