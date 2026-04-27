@@ -3,8 +3,10 @@
 Claude Code 서브에이전트 기반 **하네스 엔지니어링(harness engineering) 실험실**.
 [medipanda-web](https://github.com/) 프론트엔드에서 반복되는 **드리프트·계약 위반·보안 구멍 탐지**를 슬래시 커맨드 한 줄로 자동화하는 것이 목표.
 
+> **운영 루틴 (먼저 읽기)**: [`OPERATIONS_GUIDE.md`](OPERATIONS_GUIDE.md) — 9 커맨드 × 트리거 × 주기 × 담당.
 > **산출물 한눈에 보기**: [`INDEX.md`](INDEX.md) — 지금까지 만든 agents/commands/reports 전체 색인.
 > **시스템 아키텍처**: [`reports/medipanda-architecture-20260416.md`](reports/medipanda-architecture-20260416.md) — 2026-04-16 외주사 인수인계 미팅 기반 전체 구조.
+> **발견 사항 백로그**: [`reports/findings-backlog-20260427.md`](reports/findings-backlog-20260427.md) — B1 23 메뉴 풀스택 지도 통합 198건.
 
 ---
 
@@ -12,10 +14,11 @@ Claude Code 서브에이전트 기반 **하네스 엔지니어링(harness engine
 
 ```
 claude-opus-test/
-├── INDEX.md                산출물 전수 색인 (먼저 읽기)
-├── AUTOMATION_PLAN.md      전체 자동화 로드맵 (A1~C2, P0~P3)
-├── agents/                 서브에이전트 정의 (9개)
-├── commands/               슬래시 커맨드 정의 (6개: A1/A2/A3/B2/C1/C2)
+├── INDEX.md                산출물 전수 색인
+├── OPERATIONS_GUIDE.md     9 커맨드 운영 루틴 (트리거·주기·담당)
+├── AUTOMATION_PLAN.md      전체 자동화 로드맵 (A1~D3, P0~P3)
+├── agents/                 서브에이전트 정의 (cross-ref/migration-impact/dep-health 등)
+├── commands/               슬래시 커맨드 정의 (9개: A1/A2/A3 + B1/B2 + C1/C2 + D1/D3)
 ├── reports/                실제 실행 결과 아카이브
 │   └── ui-smoke/           Playwright spec 초안 23개 + _fixtures.ts
 ├── tsconfig.ui-smoke.json  spec strict tsc 게이트 (`npm run typecheck:ui-smoke`)
@@ -25,19 +28,22 @@ claude-opus-test/
 
 ---
 
-## 현재 진행 상태 (2026-04-17)
+## 현재 진행 상태 (2026-04-27)
 
 | # | 이름 | 목적 | 상태 |
 |---|------|------|------|
 | **A1** | `/sync-api-docs` | `backend.ts` ↔ API 문서 드리프트 탐지 | ✅ main |
 | **A2** | `/verify-frontend-contract` | orphan call / arity mismatch / axios bypass / hardcoded URL | ✅ main |
 | **A3** | `/audit-menu-routes` | menus ↔ routes ↔ guards 정합성 (보안 구멍 탐지) | ✅ main |
+| **B1** | `/ingest-medipanda-backend` | 외주 백엔드 인수 6-agent + 23 메뉴 풀스택 지도 + cross-ref | ✅ main |
 | **B2** | `/playbook-status` | `INTERNALIZATION_PLAYBOOK.md` 진행도 자동 체크 | ✅ main |
 | **C1** | `/pr-context` | PR 변경 파일 → 영향 화면/API/DB 지도 | ✅ main |
 | **C2** | `/ui-smoke` | 메뉴 문서 기반 Playwright 시나리오 (user 11 + admin 12 배치 완료, tsc 게이트 포함) | ✅ main |
-| B1 | `/ingest-medipanda-backend` | 외주 백엔드 인수 시 `/ingest-backend` 래퍼 + cross-ref | ⬜ 소스 대기 |
+| **D1** | `/db-impact` | DB 마이그레이션 SQL → 영향 메뉴/EP/Repository 역추적 | ✅ main |
+| **D3** | `/dep-health` | npm outdated + audit 합쳐 위험 등급 매기는 분기 점검 | ✅ main |
+| D2 | `/i18n-extract` | 다국어 키 누락 탐지 | ⏭️ 보류 (medipanda-web i18n 미사용) |
 
-자세한 설계·우선순위 근거는 [`AUTOMATION_PLAN.md`](AUTOMATION_PLAN.md), 산출물 전수 색인은 [`INDEX.md`](INDEX.md) 참조.
+운영 루틴(언제·누가·어떤 트리거)은 [`OPERATIONS_GUIDE.md`](OPERATIONS_GUIDE.md), 설계·우선순위 근거는 [`AUTOMATION_PLAN.md`](AUTOMATION_PLAN.md), 산출물 전수 색인은 [`INDEX.md`](INDEX.md) 참조.
 
 ---
 
@@ -48,16 +54,9 @@ claude-opus-test/
 ```bash
 REPO=/Users/jmk0629/Downloads/homework/claude-opus-test
 
-# agents
-ln -s $REPO/agents/route-auditor.md       ~/.claude/agents/route-auditor.md
-ln -s $REPO/agents/api-doc-writer.md      ~/.claude/agents/api-doc-writer.md
-ln -s $REPO/agents/impact-scanner.md      ~/.claude/agents/impact-scanner.md
-ln -s $REPO/agents/contract-checker.md    ~/.claude/agents/contract-checker.md
-
-# commands
-ln -s $REPO/commands/audit-menu-routes.md       ~/.claude/commands/audit-menu-routes.md
-ln -s $REPO/commands/sync-api-docs.md           ~/.claude/commands/sync-api-docs.md
-ln -s $REPO/commands/verify-frontend-contract.md ~/.claude/commands/verify-frontend-contract.md
+# agents·commands 일괄 (각 디렉토리 내 모든 .md 파일)
+for f in $REPO/agents/*.md;   do ln -sf "$f" ~/.claude/agents/$(basename "$f");   done
+for f in $REPO/commands/*.md; do ln -sf "$f" ~/.claude/commands/$(basename "$f"); done
 ```
 
 심볼릭 링크이므로 레포에서 수정하면 즉시 반영됨.
