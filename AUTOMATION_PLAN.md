@@ -176,6 +176,7 @@ commands/
 | 발견 사항 백로그 (수동) | ✅ main 직접 커밋 | — | `reports/findings-backlog-20260427.md` (23 bridge §5 + ingest §0 통합, 198건: P0 8 / P1 34 / P2 41 / P3 57+ / P4 3, 묶음 PR 4종 + Linear 라벨 가이드) |
 | B3 `/findings-backlog` (자동화) | ✅ main 직접 커밋 | — | `agents/findings-extractor.md` + `commands/findings-backlog.md` + `reports/findings-backlog-20260428-auto-validation.md` (수동 baseline 재현 +9건/4.5%, 횡단 7종 100% 일치, 메뉴 매핑 drift 1건 발견·수정) |
 | CI 통합 (lint-harness) | ✅ main 직접 커밋 | — | `scripts/lint-harness.sh` + `.github/workflows/ci.yml` lint-harness job (frontmatter / doc drift / cross-ref / report presence 4 job, 매 push/PR 자동) |
+| 회귀 베이스라인 비교 (`/regression-diff`) | ✅ main 직접 커밋 | — | `commands/regression-diff.md` (단일 커맨드, agent 없음, 결정적 bash 파싱). A1/A2/D3 N→N+1 신규/해소/유지 자동 카운트, LLM 미호출. 베이스라인 부재 시 안내 후 종료. 신규 command 확장은 `extract_<cmd>` 함수 + `case` 분기만 추가 |
 
 ---
 

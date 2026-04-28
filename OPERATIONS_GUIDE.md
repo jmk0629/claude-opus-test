@@ -46,7 +46,9 @@
 
 ```
 □ /sync-api-docs                ─ backend.ts ↔ docs 드리프트 0 유지
+  └─ /regression-diff sync-api-docs           ─ 직전 실행 대비 신규/해소 자동 카운트
 □ /verify-frontend-contract     ─ 베이스라인 회귀 0 유지
+  └─ /regression-diff verify-frontend-contract  ─ 회귀 자동 감지
 □ /playbook-status              ─ 진행 정체 항목 식별
 ```
 
@@ -61,6 +63,7 @@
 
 ```
 □ /dep-health                            ─ CVE/EOL/메이저 격차 베이스라인 갱신
+  └─ /regression-diff dep-health         ─ 직전 분기 대비 신규 CVE / 해소 자동 카운트
 □ /ingest-medipanda-backend              ─ 백엔드 풀스택 지도 재생성
 □ /findings-backlog                       ─ bridge 갱신본에서 신규/해소 자동 추출
 ```
@@ -148,7 +151,7 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | **CI 통합** | 모든 게 수동 실행 | GitHub Actions workflow 작성 (A1·A2·C1 PR 자동 트리거) |
 | **회귀 베이스라인 비교** | 매번 새 리포트 | D3·A1·A2 두 번째 실행 시 첫 실행 diff 자동 생성 |
 | **D1 gradle 지원** | npm 만 점검 | medipanda-api 의존성 점검 (Spring Boot BOM 처리) |
-| **회귀 베이스라인 비교** | 매번 새 리포트 | A1·A2·D3 두 번째 실행 시 첫 실행 diff 자동 생성 |
+| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3 N→N+1 결정적 bash 파싱 | ui-smoke·B1 확장 (배치 그린 비율, bridge 갱신 행) |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
 | **알림 채널 통합** | Slack 미연동 | P0 발견 시 #incident 자동 알림, ui-smoke 회귀 알림 |
 

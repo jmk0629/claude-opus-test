@@ -102,6 +102,15 @@ DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 
 - [`commands/dep-health.md`](commands/dep-health.md) — Phase 0 node_modules 검증 + Phase 1 analyzer 1회 호출
 - [`reports/dep-health-20260427-medipanda-web.md`](reports/dep-health-20260427-medipanda-web.md) — 첫 베이스라인: 직접 prod 51/dev 19, **CRIT 0·HIGH 5·MED 14·LOW 37**, 보안 critical 0 / high 11 (모두 fixAvailable)
 
+### Auxiliary. `/regression-diff` — A1/A2/D3 리포트 N→N+1 회귀 자동 감지
+
+A1·A2·D3 두 번째 실행마다 직전 대비 신규/해소/변경 카운트 자동 산출. **결정적 bash 파싱, LLM 미호출** — 매번 동일 입력 → 동일 출력, 토큰 비용 0.
+
+- [`commands/regression-diff.md`](commands/regression-diff.md) — 단일 커맨드 (agent 없음). `extract_a1/a2/d3` 행 키 추출 → set diff.
+- 호출: `/regression-diff <command-name>` — `command-name ∈ {sync-api-docs, verify-frontend-contract, dep-health}`.
+- 산출: `reports/<command>-diff-YYYYMMDD.md`. 베이스라인 부재 시 (리포트 1건 이하) "다음 실행 후 호출" 안내 후 종료.
+- 신규 추가 시 (e.g., ui-smoke 도) `extract_<cmd>` 함수 + `case` 분기만 추가하면 됨.
+
 ### B3. `/findings-backlog` — bridge §5 + ingest §0 → 발견 사항 백로그 자동 추출
 
 수동 통합 1~2시간을 자동 5분으로 단축. B1 분기 재실행 직후마다 호출하여 신규/해소/등급 변경 추적.
@@ -119,9 +128,9 @@ DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 
 
 | 항목 | 값 |
 |------|----|
-| 자동화 모듈 완성 | **10개** (A1/A2/A3 + B1/B2/B3 + C1/C2 + D1/D3) — D2 보류 |
+| 자동화 모듈 완성 | **10개 + 보조 1** (A1/A2/A3 + B1/B2/B3 + C1/C2 + D1/D3 + Aux `/regression-diff`) — D2 보류 |
 | 에이전트 정의 (`agents/*.md`) | **13개** (route-auditor, api-doc-writer, impact-scanner, contract-checker, screen/api/db-mapper, cross-ref-writer, test-writer, migration-impact-analyzer, dep-health-analyzer, findings-extractor 외) |
-| 슬래시 커맨드 정의 (`commands/*.md`) | **10개** |
+| 슬래시 커맨드 정의 (`commands/*.md`) | **11개** (10 모듈 + `/regression-diff`) |
 | 실행 리포트 (`reports/*.md`) | **16+개** (B1 23 bridge + ingest summary + findings-backlog 2종 + D1·D3 + ui-smoke 외) |
 | Bridge 풀스택 지도 (`reports/bridge/`) | **23개** (admin 12 + user 11) |
 | 발견 사항 백로그 통합 | **198건 (수동) / 207건 (자동, +4.5%)** — P0 8/15 · P1 34/51 · P2 41/65 · P3 57/70 · P4 3/6 |
