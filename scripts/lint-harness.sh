@@ -138,12 +138,15 @@ fi
 # ============================================================
 note "Job 4: report presence"
 
+# Job 1 에서 켠 nullglob 가 살아있으면 매치 0건일 때 ls 가 CWD 를 리스트 → 검증 무력화.
+shopt -u nullglob
+
 for c in "${CMDS[@]}"; do
   # 리포트 파일명은 보통 <command>-YYYYMMDD*.md 또는 <command-base>-YYYYMMDD*.md
   base=${c%-*}  # 예: dep-health-fix → dep-health
-  if ls reports/${c}-*.md 2>/dev/null | head -1 > /dev/null; then
+  if compgen -G "reports/${c}-*.md" > /dev/null; then
     : # match
-  elif ls reports/${base}-*.md 2>/dev/null | head -1 > /dev/null; then
+  elif compgen -G "reports/${base}-*.md" > /dev/null; then
     : # base match (예: ui-smoke → ui-smoke-batch-* 등)
   else
     warn "/$c: reports/ 에 리포트 없음 (한 번도 안 돌렸거나 명명 규칙 변경)"

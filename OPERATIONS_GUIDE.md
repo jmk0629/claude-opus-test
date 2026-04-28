@@ -83,6 +83,7 @@
 □ /ui-smoke (admin 12 + user 11 = 23 spec, 237 시나리오)
    - 사전: JWT refresh (`npx tsx refresh-auth.ts`) — access token 30분 만료
    - 결과: 베이스라인 회귀 알림 (Slack 또는 이메일)
+□ /regression-diff ui-smoke  ─ admin/user 배치 N→N+1 spec/시나리오/tsc 변동 자동 감지
 ```
 
 ---
@@ -149,9 +150,8 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | 항목 | 현황 | 다음 단계 |
 |------|------|----------|
 | **CI 통합** | 모든 게 수동 실행 | GitHub Actions workflow 작성 (A1·A2·C1 PR 자동 트리거) |
-| **회귀 베이스라인 비교** | 매번 새 리포트 | D3·A1·A2 두 번째 실행 시 첫 실행 diff 자동 생성 |
 | **D1 gradle 지원** | npm 만 점검 | medipanda-api 의존성 점검 (Spring Boot BOM 처리) |
-| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3 N→N+1 결정적 bash 파싱 | ui-smoke·B1 확장 (배치 그린 비율, bridge 갱신 행) |
+| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2 N→N+1 결정적 bash 파싱 | B1 bridge 갱신 행 확장 |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
 | **알림 채널 통합** | Slack 미연동 | P0 발견 시 #incident 자동 알림, ui-smoke 회귀 알림 |
 
