@@ -1,17 +1,19 @@
 ---
-description: A1/A2/D3/C2/B1 리포트 2건의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
+description: A1/A2/D3/C2/B1 리포트 + B1 bridge 스냅샷의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
 argument-hint: <command-name> [|prev_report] [|curr_report]
 ---
 
 # /regression-diff
 
-`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `ui-smoke` / `ingest-medipanda-backend` 리포트 2건을 행 단위로 비교하여 회귀 여부를 한 페이지로 보여준다. **결정적 bash 파싱, LLM 미호출** — 빠르고 재현 가능.
+`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
 
 A1/A2/D3/C2/B1 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요.
 
+`bridge` 는 ingest-medipanda-backend 와 다른 데이터 소스: `reports/bridge-snapshot-YYYYMMDD/` 디렉토리 2개를 비교하여 23 bridge × §5 R-items 의 신규/해소를 추적. 사전에 `bash scripts/bridge-snapshot.sh` 로 스냅샷 떠둬야 함.
+
 `$ARGUMENTS`:
-- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, ui-smoke, ingest-medipanda-backend}` (필수)
-- 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke 는 무시 — admin/user 배치별 자동 picking)
+- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, ui-smoke, ingest-medipanda-backend, bridge}` (필수)
+- 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke / bridge 는 무시 — 자동 picking)
 - 3rd (선택): `curr_report` 절대경로. 미지정 시 자동으로 가장 최신.
 
 ---
@@ -23,13 +25,18 @@ CMD="${1:?command-name 필수: sync-api-docs|verify-frontend-contract|dep-health
 ROOT=/Users/jmk0629/Downloads/homework/claude-opus-test
 cd "$ROOT"
 
+# 한글 키가 섞여 있고 bridge 추출은 100-byte 절단이라 멀티바이트 중간 절단 가능 →
+# sort/comm 가 "illegal byte sequence" 로 죽음. LC_ALL=C 로 byte 정렬 강제.
+# 같은 입력은 같은 byte 열을 만들므로 결정적 diff 는 유지.
+export LC_ALL=C
+
 case "$CMD" in
-  sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend) ;;
-  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend"; exit 1 ;;
+  sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend|bridge) ;;
+  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend|bridge"; exit 1 ;;
 esac
 
-# 리포트 후보 — ui-smoke 는 admin/user 배치 분리이므로 Phase 3 에서 직접 처리.
-if [ "$CMD" != "ui-smoke" ]; then
+# 리포트 후보 — ui-smoke / bridge 는 별도 데이터 소스이므로 Phase 3 에서 직접 처리.
+if [ "$CMD" != "ui-smoke" ] && [ "$CMD" != "bridge" ]; then
   # `-diff-` 접미사 (본 커맨드 출력) 는 후보에서 제외.
   mapfile -t reports < <(ls -t reports/${CMD}-*.md 2>/dev/null | grep -v -- '-diff-')
   if [ "${#reports[@]}" -lt 2 ]; then
@@ -151,6 +158,37 @@ extract_b1() {
 }
 ```
 
+### bridge (B1 §5 행 단위)
+
+`reports/bridge-snapshot-YYYYMMDD/` 디렉토리 2개를 비교. 각 bridge 의 §5 리스크 / 후속 액션 항목을 행으로 추출. 키: `bridge_basename::항목 첫 100자`.
+
+bridge 작성자별 §5 포맷이 일관되지 않음 (`- R1. ...`, `- **R1**: ...`, `| R1 | ... |`, `1. **label**: ...` 등) — permissive 패턴으로 bullet / numbered / table 행 모두 잡고, backtick·`**` 마크다운 노이즈 제거 후 100자 절단해 안정 키 생성. 표 separator(`| --- |`)는 제외. 다소 noisy 하지만 false-negative(놓침)보다는 conservative.
+
+```bash
+extract_bridge() {
+  local snapshot_dir="$1"
+  shopt -u nullglob
+  for f in "$snapshot_dir"/*.md; do
+    [ -f "$f" ] || continue
+    local bridge
+    bridge=$(basename "$f" .md)
+    awk -v bridge="$bridge" '
+      /^## 5\./ { in_sec=1; next }
+      /^## / { in_sec=0 }
+      # bullet, numbered list, table row (separator 제외)
+      in_sec && (/^- / || /^[0-9]+\. / || (/^\| / && !/^\| -/)) {
+        line = $0
+        gsub(/[`*]/, "", line)
+        gsub(/[ \t]+$/, "", line); gsub(/^[ \t]+/, "", line)
+        if (length(line) > 100) line = substr(line, 1, 100)
+        if (line != "") print bridge "::" line
+      }
+    ' "$f"
+  done | sort -u
+  # NOTE: 100-byte 절단으로 멀티바이트 중간이 잘릴 수 있음 — Phase 0 의 LC_ALL=C 가 byte-sort 보장.
+}
+```
+
 ### ui-smoke (C2)
 
 `reports/ui-smoke-batch-{admin,user}-YYYYMMDD.md` 의 산출물 인벤토리 표. 키는 `spec명::시나리오수::tsc상태` — 메뉴 추가/삭제, 시나리오 증감, tsc 통과 여부 변동을 한 번에 감지.
@@ -267,6 +305,29 @@ OUT="reports/${CMD}-diff-${DATE}.md"
         echo
       done
       ;;
+    bridge)
+      # 의미론 고정: reports/bridge/ = curr (최신 B1 산출물), 가장 최신 snapshot = prev.
+      # mtime 정렬 못 씀 — `cp -r` 로 막 만든 snapshot 의 mtime 이 live 보다 크기 쉬움.
+      # snapshot 폴더명에 박힌 YYYYMMDD 를 키로 sort -r 해서 prev 결정.
+      CURR_DIR=reports/bridge
+      mapfile -t snaps < <(ls -d reports/bridge-snapshot-*/ 2>/dev/null | sort -r)
+      if [ ! -d "$CURR_DIR" ]; then
+        echo "_\`reports/bridge/\` 없음 — B1(/ingest-medipanda-backend) 미실행. 먼저 B1 부터._"
+        echo
+      elif [ "${#snaps[@]}" -lt 1 ]; then
+        echo "_bridge snapshot 0건 — 베이스라인 부재. \`bash scripts/bridge-snapshot.sh\` 로 현재 \`reports/bridge/\` 를 보존 → 다음 B1 재실행 후 본 커맨드 호출._"
+        echo
+      else
+        PREV_DIR="${snaps[0]%/}"
+        echo "> prev: \`$(basename "$PREV_DIR")\` (snapshot)"
+        echo "> curr: \`$(basename "$CURR_DIR")\` (live)"
+        echo
+        prev=$(extract_bridge "$PREV_DIR")
+        curr=$(extract_bridge "$CURR_DIR")
+        diff_section "23 bridge §5 R-items (bridge::항목)" "$prev" "$curr"
+        echo
+      fi
+      ;;
     ingest-medipanda-backend)
       for sub in scale top; do
         prev=$(extract_b1 "$PREV" "$sub")
@@ -331,6 +392,9 @@ echo "✅ $OUT 생성 완료"
 
 # B1 분기 재실행 후 §0 백엔드 규모 + Top N 회귀 비교
 /regression-diff ingest-medipanda-backend
+
+# B1 bridge §5 R-items 행 단위 회귀 (사전: bash scripts/bridge-snapshot.sh)
+/regression-diff bridge
 ```
 
 ---
