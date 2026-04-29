@@ -155,10 +155,9 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | **CI 통합 (claude-opus-test 측)** | ✅ `.github/workflows/ci.yml` — `lint-harness` + frontmatter validate (push/PR) | — |
 | **CI 통합 (medipanda-web 측)** | 미연동 — 외부 레포 룰상 본 하네스에서 직접 워크플로우 추가 불가 | medipanda-web 측 PR 자동 트리거는 사용자가 별도 결정/실행 |
 | **D3 gradle 지원** | ✅ `scripts/gradle-dep-health.sh` (정적, 직접 의존성) + `scripts/gradle-deps-transitive.sh` (deps.dev API, transitive CVE, `|deep` 플래그) | — |
-| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 + bridge §5 결정적 bash 파싱 (`scripts/bridge-snapshot.sh` 로 스냅샷 디렉토리 보존) | — |
-| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 + bridge §5 결정적 bash 파싱 (`scripts/bridge-snapshot.sh` 로 스냅샷 디렉토리 보존) | — |
+| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 + bridge §5 + D3 transitive CVE 결정적 bash 파싱 (`scripts/bridge-snapshot.sh` 로 스냅샷 디렉토리 보존) | — |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
-| **알림 채널 통합** | Slack 미연동 (외부 의존) | webhook URL 확보 후 `scripts/notify-slack.sh` 추가 (P0/회귀 신호) |
+| **알림 채널 통합** | ✅ `scripts/notify-local.sh` — macOS osascript 알림센터 + `reports/notifications.log` (`/regression-diff` 신규 ≥ 1 시 warn 자동 발사). `NOTIFY_DISABLE=1` 로 야간 배치 묵음 | Slack/이메일 통합은 외부 webhook 결정 필요 시 추가 |
 
 ---
 

@@ -410,6 +410,12 @@ OUT="reports/${CMD}-diff-${DATE}.md"
 } > "$OUT"
 
 echo "✅ $OUT 생성 완료"
+
+# 신규 회귀 합계 → 0 초과 시 macOS 로컬 알림 (osascript). 헬퍼가 mac 외 환경 폴백 처리.
+TOTAL_ADDED=$(grep -oE '신규 \*\*[0-9]+\*\*' "$OUT" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+if [ "${TOTAL_ADDED:-0}" -gt 0 ] && [ -x scripts/notify-local.sh ]; then
+  bash scripts/notify-local.sh "/regression-diff ${CMD}" "신규 회귀 ${TOTAL_ADDED}건 — $(basename "$OUT")" warn
+fi
 ```
 
 ---

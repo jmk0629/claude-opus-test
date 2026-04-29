@@ -6,3 +6,4 @@ node_modules/
 .claude/
 test-results/
 reports/cache/
+reports/notifications.log
