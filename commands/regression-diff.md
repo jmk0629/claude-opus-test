@@ -1,16 +1,16 @@
 ---
-description: A1/A2/D3/C2 리포트 2건의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
+description: A1/A2/D3/C2/B1 리포트 2건의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
 argument-hint: <command-name> [|prev_report] [|curr_report]
 ---
 
 # /regression-diff
 
-`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `ui-smoke` 리포트 2건을 행 단위로 비교하여 회귀 여부를 한 페이지로 보여준다. **결정적 bash 파싱, LLM 미호출** — 빠르고 재현 가능.
+`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `ui-smoke` / `ingest-medipanda-backend` 리포트 2건을 행 단위로 비교하여 회귀 여부를 한 페이지로 보여준다. **결정적 bash 파싱, LLM 미호출** — 빠르고 재현 가능.
 
-A1/A2/D3/C2 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요.
+A1/A2/D3/C2/B1 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요.
 
 `$ARGUMENTS`:
-- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, ui-smoke}` (필수)
+- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, ui-smoke, ingest-medipanda-backend}` (필수)
 - 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke 는 무시 — admin/user 배치별 자동 picking)
 - 3rd (선택): `curr_report` 절대경로. 미지정 시 자동으로 가장 최신.
 
@@ -24,8 +24,8 @@ ROOT=/Users/jmk0629/Downloads/homework/claude-opus-test
 cd "$ROOT"
 
 case "$CMD" in
-  sync-api-docs|verify-frontend-contract|dep-health|ui-smoke) ;;
-  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|ui-smoke"; exit 1 ;;
+  sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend) ;;
+  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend"; exit 1 ;;
 esac
 
 # 리포트 후보 — ui-smoke 는 admin/user 배치 분리이므로 Phase 3 에서 직접 처리.
@@ -106,6 +106,46 @@ extract_d3() {
       # §1~3: a[2]=패키지 / §4: a[1]=패키지 + a[2]=severity
       if (sec_num == "4") print a[1] "::" a[2]
       else print a[2]
+    }
+  ' "$file" | sort -u
+}
+```
+
+### ingest-medipanda-backend (B1)
+
+`reports/ingest-medipanda-backend-YYYYMMDD.md` 의 §0 한 장 요약 안에 있는 두 표를 키로 사용.
+
+- **§0 ### 백엔드 규모**: `Controller / 엔드포인트 / @Service / Repository / @Entity / Enum / Aggregate` 카운트 — 스케일 변동 (외주가 새 모듈을 추가했는지 등) 감지. 키: `항목::수치`.
+- **§0 ### 즉시 대응 필요 Top N**: 보안/리스크 항목 — 신규 발견 / 해소된 항목을 자동 카운트. 키: `<제목 (— 앞 부분)>::<심각도>`.
+
+bridge §5 (RN. 항목) 의 행 단위 diff 는 별도 스냅샷 디렉토리(`reports/bridge-snapshot-YYYYMMDD/`)가 있어야 가능 — 현 버전은 ingest summary 만 처리. 분기 B1 재실행 직전 `cp -r reports/bridge reports/bridge-snapshot-$(date +%Y%m%d)` 로 스냅샷을 떠두면 다음 회 확장에서 활용.
+
+```bash
+extract_b1() {
+  local file="$1" subsection="$2"  # subsection ∈ "scale" | "top"
+  # NOTE: awk var 명에 `sub` 사용 금지 — gsub/sub 빌트인과 충돌. `mode` 사용.
+  awk -v mode="$subsection" '
+    /^## 0\./ { in_zero=1; next }
+    /^## / && !/^## 0\./ { in_zero=0; in_sec=0 }
+    in_zero && /^### 백엔드 규모/   { in_sec = (mode=="scale" ? 1 : 0); next }
+    in_zero && /^### 즉시 대응/      { in_sec = (mode=="top"   ? 1 : 0); next }
+    in_zero && /^### / { in_sec=0 }
+    in_sec && /^\| / && !/^\| -/ && !/^\| 항목|^\| 순위/ {
+      gsub(/^\| /, "")
+      gsub(/ \|$/, "")
+      n = split($0, a, " \\| ")
+      for (i=1; i<=n; i++) { gsub(/^[ \t]+/, "", a[i]); gsub(/[ \t]+$/, "", a[i]) }
+      if (mode == "scale") {
+        # | 항목 | 수치 | 출처 |
+        print a[1] "::" a[2]
+      } else {
+        # | 순위 | 항목 | 심각도 | 출처 |  →  항목 첫 절 (` — ` 앞) + 심각도
+        title = a[2]
+        idx = index(title, " — ")
+        if (idx > 0) title = substr(title, 1, idx-1)
+        gsub(/\*\*/, "", title)
+        print title "::" a[3]
+      }
     }
   ' "$file" | sort -u
 }
@@ -227,6 +267,18 @@ OUT="reports/${CMD}-diff-${DATE}.md"
         echo
       done
       ;;
+    ingest-medipanda-backend)
+      for sub in scale top; do
+        prev=$(extract_b1 "$PREV" "$sub")
+        curr=$(extract_b1 "$CURR" "$sub")
+        case "$sub" in
+          scale) label="§0 백엔드 규모 (항목::수치)" ;;
+          top)   label="§0 즉시 대응 Top N (제목::심각도)" ;;
+        esac
+        diff_section "$label" "$prev" "$curr"
+        echo
+      done
+      ;;
     ui-smoke)
       # admin / user 배치 각각 별도 회귀 추적
       for scope in admin user; do
@@ -276,6 +328,9 @@ echo "✅ $OUT 생성 완료"
 
 # ui-smoke 야간 배치 N→N+1 비교 (admin/user 배치 동시)
 /regression-diff ui-smoke
+
+# B1 분기 재실행 후 §0 백엔드 규모 + Top N 회귀 비교
+/regression-diff ingest-medipanda-backend
 ```
 
 ---
