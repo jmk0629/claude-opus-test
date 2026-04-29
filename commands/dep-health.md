@@ -1,6 +1,6 @@
 ---
 description: npm 또는 Gradle(Spring Boot) 프로젝트 의존성 신선도/보안 점검. 외주 인수 직후 또는 분기 1회 실행해 EOL/CVE/메이저 격차를 한 페이지로 답한다.
-argument-hint: "[target_root] [|audit_only] [|skip_dev]"
+argument-hint: "[target_root] [|audit_only] [|skip_dev] [|deep]"
 ---
 
 # /dep-health
@@ -16,7 +16,7 @@ argument-hint: "[target_root] [|audit_only] [|skip_dev]"
 - 첫 토큰: target_root (생략 시 기본값)
 - `|audit_only`: npm 전용 — outdated 생략, audit 만
 - `|skip_dev`: npm 전용 — devDependencies 제외
-- gradle 경로는 정적 파싱이라 위 플래그 무시
+- `|deep`: gradle 전용 — `scripts/gradle-deps-transitive.sh` 추가 실행 (deps.dev API 로 transitive CVE 조회). 네트워크 필수, 첫 실행 2~5분 (캐시 후 즉시).
 
 ---
 
@@ -35,9 +35,15 @@ fi
 
 ```bash
 bash scripts/gradle-dep-health.sh "$TARGET"
+
+# |deep 플래그 시: deps.dev API 로 transitive CVE 추가 조회 (별 리포트)
+if [[ "$ARGUMENTS" == *"|deep"* ]]; then
+  bash scripts/gradle-deps-transitive.sh "$TARGET"
+fi
 ```
 
-→ `reports/dep-health-gradle-YYYYMMDD-<basename>.md` 생성. 결정적 bash, LLM 미호출. 정적 파싱이라 transitive CVE 미추적 — `./gradlew dependencyCheckAnalyze` 별도 권장.
+→ 기본: `reports/dep-health-gradle-YYYYMMDD-<basename>.md` (결정적 bash, LLM 미호출, 직접 의존성 EOL/CVE 휴리스틱).
+→ `|deep` 플래그: `reports/dep-health-gradle-transitive-YYYYMMDD-<basename>.md` 추가. deps.dev API 로 직접 + 간접(transitive) 의존성 트리 + GHSA/CVE 매핑 (CVSS 등급 분류). 캐시: `reports/cache/deps.dev/`.
 
 ### npm 경로 (Phase 1 이후)
 

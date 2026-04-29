@@ -152,11 +152,13 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 
 | 항목 | 현황 | 다음 단계 |
 |------|------|----------|
-| **CI 통합** | 모든 게 수동 실행 | GitHub Actions workflow 작성 (A1·A2·C1 PR 자동 트리거) |
-| **D3 gradle 지원** | ✅ `scripts/gradle-dep-health.sh` — Spring Boot Version Catalog 정적 파싱 (CRIT/HIGH/MED/LOW) | transitive CVE (OWASP Dependency-Check) 추가 |
+| **CI 통합 (claude-opus-test 측)** | ✅ `.github/workflows/ci.yml` — `lint-harness` + frontmatter validate (push/PR) | — |
+| **CI 통합 (medipanda-web 측)** | 미연동 — 외부 레포 룰상 본 하네스에서 직접 워크플로우 추가 불가 | medipanda-web 측 PR 자동 트리거는 사용자가 별도 결정/실행 |
+| **D3 gradle 지원** | ✅ `scripts/gradle-dep-health.sh` (정적, 직접 의존성) + `scripts/gradle-deps-transitive.sh` (deps.dev API, transitive CVE, `|deep` 플래그) | — |
+| **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 + bridge §5 결정적 bash 파싱 (`scripts/bridge-snapshot.sh` 로 스냅샷 디렉토리 보존) | — |
 | **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 + bridge §5 결정적 bash 파싱 (`scripts/bridge-snapshot.sh` 로 스냅샷 디렉토리 보존) | — |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
-| **알림 채널 통합** | Slack 미연동 | P0 발견 시 #incident 자동 알림, ui-smoke 회귀 알림 |
+| **알림 채널 통합** | Slack 미연동 (외부 의존) | webhook URL 확보 후 `scripts/notify-slack.sh` 추가 (P0/회귀 신호) |
 
 ---
 
