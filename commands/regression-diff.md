@@ -1,18 +1,20 @@
 ---
-description: A1/A2/D3/C2/B1 리포트 + B1 bridge 스냅샷의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
+description: A1/A2/D3/C2/B1 리포트 + B1 bridge 스냅샷 + D3 transitive CVE 의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
 argument-hint: <command-name> [|prev_report] [|curr_report]
 ---
 
 # /regression-diff
 
-`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
+`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `dep-health-gradle-transitive` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
 
 A1/A2/D3/C2/B1 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요.
 
 `bridge` 는 ingest-medipanda-backend 와 다른 데이터 소스: `reports/bridge-snapshot-YYYYMMDD/` 디렉토리 2개를 비교하여 23 bridge × §5 R-items 의 신규/해소를 추적. 사전에 `bash scripts/bridge-snapshot.sh` 로 스냅샷 떠둬야 함.
 
+`dep-health-gradle-transitive` 는 D3 deep 모드(`scripts/gradle-deps-transitive.sh`) 산출물 비교 — transitive 의존성에 새 CRIT/HIGH CVE 가 등장하거나 해소된 경우 자동 카운트. 키: `CVE::module:version`.
+
 `$ARGUMENTS`:
-- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, ui-smoke, ingest-medipanda-backend, bridge}` (필수)
+- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge}` (필수)
 - 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke / bridge 는 무시 — 자동 picking)
 - 3rd (선택): `curr_report` 절대경로. 미지정 시 자동으로 가장 최신.
 
@@ -31,8 +33,8 @@ cd "$ROOT"
 export LC_ALL=C
 
 case "$CMD" in
-  sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend|bridge) ;;
-  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|ui-smoke|ingest-medipanda-backend|bridge"; exit 1 ;;
+  sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge) ;;
+  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge"; exit 1 ;;
 esac
 
 # 리포트 후보 — ui-smoke / bridge 는 별도 데이터 소스이므로 Phase 3 에서 직접 처리.
@@ -113,6 +115,31 @@ extract_d3() {
       # §1~3: a[2]=패키지 / §4: a[1]=패키지 + a[2]=severity
       if (sec_num == "4") print a[1] "::" a[2]
       else print a[2]
+    }
+  ' "$file" | sort -u
+}
+```
+
+### dep-health-gradle-transitive (D3 deep)
+
+`reports/dep-health-gradle-transitive-YYYYMMDD-<basename>.md` 의 §1·2·3·4 (CRIT/HIGH/MED/LOW) CVE 표. 키: `CVE::module:version` — 같은 transitive 가 같은 CVE 로 다시 보이면 유지, 새 CVE 또는 새 모듈로 등장하면 신규.
+
+```bash
+extract_d3_transitive() {
+  local file="$1" section="$2"  # section ∈ 1|2|3|4
+  awk -v sec="^## $section\\." '
+    $0 ~ sec { in_sec=1; next }
+    /^## / { in_sec=0 }
+    in_sec && /^\| / && !/^\| -/ && !/^\| CVSS/ {
+      gsub(/^\| /, "")
+      gsub(/ \|$/, "")
+      n = split($0, a, " \\| ")
+      # a[1]=CVSS a[2]=CVE a[3]=`module:ver` a[4]=`via:ver` a[5]=summary
+      cve = a[2]; mod = a[3]
+      gsub(/`/, "", cve); gsub(/`/, "", mod)
+      gsub(/^[ \t]+/, "", cve); gsub(/[ \t]+$/, "", cve)
+      gsub(/^[ \t]+/, "", mod); gsub(/[ \t]+$/, "", mod)
+      if (cve != "" && mod != "") print cve "::" mod
     }
   ' "$file" | sort -u
 }
@@ -300,6 +327,20 @@ OUT="reports/${CMD}-diff-${DATE}.md"
           2) label="§2 HIGH" ;;
           3) label="§3 MED" ;;
           4) label="§4 npm audit" ;;
+        esac
+        diff_section "$label" "$prev" "$curr"
+        echo
+      done
+      ;;
+    dep-health-gradle-transitive)
+      for sec in 1 2 3 4; do
+        prev=$(extract_d3_transitive "$PREV" "$sec")
+        curr=$(extract_d3_transitive "$CURR" "$sec")
+        case "$sec" in
+          1) label="§1 CRIT (CVE::module:version)" ;;
+          2) label="§2 HIGH (CVE::module:version)" ;;
+          3) label="§3 MED (CVE::module:version)" ;;
+          4) label="§4 LOW (CVE::module:version)" ;;
         esac
         diff_section "$label" "$prev" "$curr"
         echo
