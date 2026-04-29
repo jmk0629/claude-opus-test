@@ -151,7 +151,7 @@ C2 /ui-smoke  ←  메뉴 문서 (`docs/{admin,user}/NN_*.md`)
 | 항목 | 현황 | 다음 단계 |
 |------|------|----------|
 | **CI 통합** | 모든 게 수동 실행 | GitHub Actions workflow 작성 (A1·A2·C1 PR 자동 트리거) |
-| **D1 gradle 지원** | npm 만 점검 | medipanda-api 의존성 점검 (Spring Boot BOM 처리) |
+| **D3 gradle 지원** | ✅ `scripts/gradle-dep-health.sh` — Spring Boot Version Catalog 정적 파싱 (CRIT/HIGH/MED/LOW) | transitive CVE (OWASP Dependency-Check) 추가 |
 | **회귀 베이스라인 비교** | ✅ `/regression-diff` (Aux) — A1/A2/D3/C2/B1 §0 결정적 bash 파싱 | B1 bridge §5 행 단위 (스냅샷 디렉토리 기반) 확장 |
 | **D2 `/i18n-extract`** | 보류 | 다국어 도입 시 |
 | **알림 채널 통합** | Slack 미연동 | P0 발견 시 #incident 자동 알림, ui-smoke 회귀 알림 |

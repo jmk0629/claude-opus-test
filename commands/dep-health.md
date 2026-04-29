@@ -1,24 +1,45 @@
 ---
-description: npm 프로젝트 의존성 신선도(outdated) + 보안(audit) 점검. 외주 인수 직후 또는 분기 1회 실행해 EOL/CVE/메이저 격차를 한 페이지로 답한다.
+description: npm 또는 Gradle(Spring Boot) 프로젝트 의존성 신선도/보안 점검. 외주 인수 직후 또는 분기 1회 실행해 EOL/CVE/메이저 격차를 한 페이지로 답한다.
 argument-hint: "[target_root] [|audit_only] [|skip_dev]"
 ---
 
 # /dep-health
 
-`npm outdated --json` + `npm audit --json` 두 출처를 합쳐 **위험 등급(CRIT/HIGH/MED/LOW) 별로 업그레이드 우선순위**를 정리하는 도구. 분기 1회 또는 외주 인수 직후 실행 권장.
+`package.json` 프로젝트는 `npm outdated` + `npm audit`, Spring Boot Gradle 프로젝트(`gradle/libs.versions.toml`)는 정적 catalog 파싱으로 **위험 등급(CRIT/HIGH/MED/LOW) 별 업그레이드 우선순위**를 정리한다. 분기 1회 또는 외주 인수 직후 실행 권장.
 
 기본 입력:
-- **target_root**: 점검 대상 npm 프로젝트 루트 (default: `/Users/jmk0629/keymedi/medipanda-web`)
-- 출력: `reports/dep-health-YYYYMMDD-<basename>.md`
+- **target_root**: 점검 대상 프로젝트 루트 (default: `/Users/jmk0629/keymedi/medipanda-web`)
+- 출력 (npm): `reports/dep-health-YYYYMMDD-<basename>.md`
+- 출력 (gradle): `reports/dep-health-gradle-YYYYMMDD-<basename>.md`
 
 `$ARGUMENTS` 파싱:
 - 첫 토큰: target_root (생략 시 기본값)
-- `|audit_only`: outdated 생략, audit 만
-- `|skip_dev`: devDependencies 제외
+- `|audit_only`: npm 전용 — outdated 생략, audit 만
+- `|skip_dev`: npm 전용 — devDependencies 제외
+- gradle 경로는 정적 파싱이라 위 플래그 무시
 
 ---
 
-## Phase 0: 사전 확인
+## Phase 0: 사전 확인 + 빌드 도구 자동 감지
+
+```bash
+TARGET="${target_root:-/Users/jmk0629/keymedi/medipanda-web}"
+
+if   [ -f "$TARGET/gradle/libs.versions.toml" ]; then BUILD=gradle
+elif [ -f "$TARGET/package.json" ];                then BUILD=npm
+else echo "❌ 지원 빌드 없음 (package.json / gradle/libs.versions.toml 둘 다 없음)"; exit 1
+fi
+```
+
+### gradle 경로
+
+```bash
+bash scripts/gradle-dep-health.sh "$TARGET"
+```
+
+→ `reports/dep-health-gradle-YYYYMMDD-<basename>.md` 생성. 결정적 bash, LLM 미호출. 정적 파싱이라 transitive CVE 미추적 — `./gradlew dependencyCheckAnalyze` 별도 권장.
+
+### npm 경로 (Phase 1 이후)
 
 1. target_root 가 디렉토리인지 + `package.json` 존재 Read
 2. `node_modules/` 존재 확인 (Bash `test -d`). 없으면 즉시 중단:
@@ -30,7 +51,7 @@ argument-hint: "[target_root] [|audit_only] [|skip_dev]"
 
 ---
 
-## Phase 1: dep-health-analyzer 1회 호출
+## Phase 1: dep-health-analyzer 1회 호출 (npm 경로만)
 
 **병렬 호출 없음** — Bash 호출 2회(outdated/audit) + 파싱 + 리포트 작성을 한 에이전트가 직렬 처리.
 
@@ -79,15 +100,18 @@ argument-hint: "[target_root] [|audit_only] [|skip_dev]"
 ## 사용 예시
 
 ```
-# 기본 — medipanda-web 전체
+# 기본 — medipanda-web 전체 (npm)
 /dep-health
 
-# 다른 프로젝트
+# medipanda-api (gradle 자동 감지 → scripts/gradle-dep-health.sh)
+/dep-health /Users/jmk0629/keymedi/medipanda-api
+
+# 다른 npm 프로젝트
 /dep-health /Users/jmk0629/keymedi/medipanda-mobile-app
 
-# 보안만 (빠르게)
+# 보안만 (빠르게, npm)
 /dep-health |audit_only
 
-# prod 의존성만 (배포 영향 좁히기)
+# prod 의존성만 (배포 영향 좁히기, npm)
 /dep-health |skip_dev
 ```
