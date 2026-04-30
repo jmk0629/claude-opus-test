@@ -412,9 +412,21 @@ OUT="reports/${CMD}-diff-${DATE}.md"
 echo "✅ $OUT 생성 완료"
 
 # 신규 회귀 합계 → 0 초과 시 macOS 로컬 알림 (osascript). 헬퍼가 mac 외 환경 폴백 처리.
+# severity 격상: §1 CRIT 섹션(dep-health/dep-health-gradle-transitive 한정)에 신규 ≥ 1 → crit (음성).
 TOTAL_ADDED=$(grep -oE '신규 \*\*[0-9]+\*\*' "$OUT" | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
-if [ "${TOTAL_ADDED:-0}" -gt 0 ] && [ -x scripts/notify-local.sh ]; then
-  bash scripts/notify-local.sh "/regression-diff ${CMD}" "신규 회귀 ${TOTAL_ADDED}건 — $(basename "$OUT")" warn
+CRIT_ADDED=$(awk '
+  /^### §1/ { in_crit=1; next }
+  /^### /   { in_crit=0 }
+  in_crit && /신규/ { print; exit }
+' "$OUT" | grep -oE '신규 \*\*[0-9]+\*\*' | grep -oE '[0-9]+')
+CRIT_ADDED=${CRIT_ADDED:-0}
+
+if [ -x scripts/notify-local.sh ]; then
+  if [ "$CRIT_ADDED" -gt 0 ]; then
+    bash scripts/notify-local.sh "/regression-diff ${CMD}" "🔴 CRIT 신규 ${CRIT_ADDED}건 (전체 ${TOTAL_ADDED}) — $(basename "$OUT")" crit
+  elif [ "${TOTAL_ADDED:-0}" -gt 0 ]; then
+    bash scripts/notify-local.sh "/regression-diff ${CMD}" "신규 회귀 ${TOTAL_ADDED}건 — $(basename "$OUT")" warn
+  fi
 fi
 ```
 
