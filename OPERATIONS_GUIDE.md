@@ -62,8 +62,10 @@
 ### 2.4 분기말 (백엔드/FE 공동)
 
 ```
-□ /dep-health                            ─ CVE/EOL/메이저 격차 베이스라인 갱신
+□ /dep-health                            ─ CVE/EOL/메이저 격차 베이스라인 갱신 (npm/gradle 자동 감지)
   └─ /regression-diff dep-health         ─ 직전 분기 대비 신규 CVE / 해소 자동 카운트
+□ /dep-health <api경로> |deep             ─ medipanda-api 한정 transitive CVE (deps.dev API, 2~5분)
+  └─ /regression-diff dep-health-gradle-transitive  ─ transitive 신규 CRIT → say 음성 알림
 □ bash scripts/bridge-snapshot.sh         ─ 다음 B1 직전, 현재 reports/bridge/ 보존 (회귀 베이스라인)
 □ /ingest-medipanda-backend              ─ 백엔드 풀스택 지도 재생성 (reports/bridge/ 덮어쓰기)
   ├─ /regression-diff ingest-medipanda-backend  ─ §0 백엔드 규모 + 즉시 대응 Top N 자동 회귀

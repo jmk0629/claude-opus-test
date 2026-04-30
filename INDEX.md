@@ -94,22 +94,26 @@ DDL `.sql` → bridge 인덱스로 영향 테이블·메뉴·EP·Repository 한 
 - [`reports/db-impact-fixtures/V1_5__add_audit_columns_to_partner_tables.sql`](reports/db-impact-fixtures/) — 첫 테스트 픽스처 (BaseEntity 보강)
 - [`reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md`](reports/db-impact-20260427-V1_5__add_audit_columns_to_partner_tables.md) — 첫 실행: 영향 테이블 3 / 영향 메뉴 7, **CRIT 1·HIGH 2·MED 3·LOW 2** 검출 (file_kind 컬럼명 drift 사전 발견)
 
-### D3. `/dep-health` — npm 의존성 신선도 + 보안 분기 점검
+### D3. `/dep-health` — npm/Gradle 의존성 신선도 + CVE 분기 점검
 
-`npm outdated --json` + `npm audit --json` 합쳐 위험 등급(CRIT/HIGH/MED/LOW). 외주 인수 직후 + 분기 1회 베이스라인.
+빌드 도구 자동 감지: `package.json` → npm 경로(`npm outdated` + `npm audit`), `gradle/libs.versions.toml` → Gradle 경로(정적 파싱). `|deep` 플래그 시 deps.dev API 로 transitive CVE 트리까지 조회.
 
-- [`agents/dep-health-analyzer.md`](agents/dep-health-analyzer.md) — 5단계 outdated/audit 합치는 에이전트 (sonnet)
-- [`commands/dep-health.md`](commands/dep-health.md) — Phase 0 node_modules 검증 + Phase 1 analyzer 1회 호출
-- [`reports/dep-health-20260427-medipanda-web.md`](reports/dep-health-20260427-medipanda-web.md) — 첫 베이스라인: 직접 prod 51/dev 19, **CRIT 0·HIGH 5·MED 14·LOW 37**, 보안 critical 0 / high 11 (모두 fixAvailable)
+- [`agents/dep-health-analyzer.md`](agents/dep-health-analyzer.md) — npm 경로 5단계 outdated/audit 합치는 에이전트 (sonnet)
+- [`commands/dep-health.md`](commands/dep-health.md) — Phase 0 빌드 도구 감지 + npm/gradle 분기 + `|deep` 플래그
+- [`scripts/gradle-dep-health.sh`](scripts/gradle-dep-health.sh) — Gradle Version Catalog 정적 파싱 (직접 의존성, EOL 휴리스틱)
+- [`scripts/gradle-deps-transitive.sh`](scripts/gradle-deps-transitive.sh) — deps.dev API 로 transitive 트리 + GHSA/CVE 매핑 + CVSS 등급 분류 (캐시 `reports/cache/deps.dev/`)
+- [`reports/dep-health-20260427-medipanda-web.md`](reports/dep-health-20260427-medipanda-web.md) — npm 첫 베이스라인 (medipanda-web): 직접 prod 51/dev 19, **CRIT 0·HIGH 5·MED 14·LOW 37**, 보안 critical 0 / high 11 (모두 fixAvailable)
+- [`reports/dep-health-gradle-transitive-20260429-medipanda-api.md`](reports/dep-health-gradle-transitive-20260429-medipanda-api.md) — Gradle transitive 첫 베이스라인 (medipanda-api): 직접 38 / 고유 transitive 397, **CRIT 2 / HIGH 5 / MED 8 / LOW 4** (Spring4Shell, Netty smuggling, SnakeYAML RCE 발견)
 
-### Auxiliary. `/regression-diff` — A1/A2/D3 리포트 N→N+1 회귀 자동 감지
+### Auxiliary. `/regression-diff` — 리포트 N→N+1 회귀 자동 감지 + macOS 알림
 
-A1·A2·D3 두 번째 실행마다 직전 대비 신규/해소/변경 카운트 자동 산출. **결정적 bash 파싱, LLM 미호출** — 매번 동일 입력 → 동일 출력, 토큰 비용 0.
+7개 커맨드 산출물의 직전 대비 신규/해소/유지 카운트 자동 산출. **결정적 bash 파싱, LLM 미호출** — 매번 동일 입력 → 동일 출력, 토큰 비용 0. 신규 ≥ 1 시 `scripts/notify-local.sh` 자동 호출 (§1 CRIT 신규는 `crit` 음성 동반).
 
-- [`commands/regression-diff.md`](commands/regression-diff.md) — 단일 커맨드 (agent 없음). `extract_a1/a2/d3` 행 키 추출 → set diff.
-- 호출: `/regression-diff <command-name>` — `command-name ∈ {sync-api-docs, verify-frontend-contract, dep-health}`.
-- 산출: `reports/<command>-diff-YYYYMMDD.md`. 베이스라인 부재 시 (리포트 1건 이하) "다음 실행 후 호출" 안내 후 종료.
-- 신규 추가 시 (e.g., ui-smoke 도) `extract_<cmd>` 함수 + `case` 분기만 추가하면 됨.
+- [`commands/regression-diff.md`](commands/regression-diff.md) — 단일 커맨드 (agent 없음). `extract_a1/a2/d3/d3_transitive/b1/bridge/ui_smoke` 행 키 추출 → set diff.
+- 지원: `command-name ∈ {sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge}`
+- 산출: `reports/<command>-diff-YYYYMMDD.md`. 베이스라인 부재 시 안내 후 종료.
+- 알림 통합: `TOTAL_ADDED > 0` → warn, `§1 CRIT 신규 ≥ 1` → crit 격상 (음성).
+- 신규 추가 시 `extract_<cmd>` 함수 + `case` 분기만 추가하면 됨.
 
 ### B3. `/findings-backlog` — bridge §5 + ingest §0 → 발견 사항 백로그 자동 추출
 
@@ -124,20 +128,23 @@ A1·A2·D3 두 번째 실행마다 직전 대비 신규/해소/변경 카운트 
 
 ---
 
-## 2. 누적 지표 (2026-04-28 기준)
+## 2. 누적 지표 (2026-04-30 기준)
 
 | 항목 | 값 |
 |------|----|
 | 자동화 모듈 완성 | **10개 + 보조 1** (A1/A2/A3 + B1/B2/B3 + C1/C2 + D1/D3 + Aux `/regression-diff`) — D2 보류 |
 | 에이전트 정의 (`agents/*.md`) | **13개** (route-auditor, api-doc-writer, impact-scanner, contract-checker, screen/api/db-mapper, cross-ref-writer, test-writer, migration-impact-analyzer, dep-health-analyzer, findings-extractor 외) |
 | 슬래시 커맨드 정의 (`commands/*.md`) | **11개** (10 모듈 + `/regression-diff`) |
-| 실행 리포트 (`reports/*.md`) | **16+개** (B1 23 bridge + ingest summary + findings-backlog 2종 + D1·D3 + ui-smoke 외) |
+| 실행 리포트 (`reports/*.md`) | **17+개** (B1 23 bridge + ingest summary + findings-backlog 2종 + D1·D3 npm·D3 gradle transitive + ui-smoke 외) |
 | Bridge 풀스택 지도 (`reports/bridge/`) | **23개** (admin 12 + user 11) |
 | 발견 사항 백로그 통합 | **198건 (수동) / 207건 (자동, +4.5%)** — P0 8/15 · P1 34/51 · P2 41/65 · P3 57/70 · P4 3/6 |
 | 실제 런타임 실행 (user 배치) | 11 spec / 98 passed / 1 skip / 0 fail (3.2분) |
 | 실제 런타임 실행 (admin 배치) | 12 spec / **138/139** 그린 |
 | Playwright spec 초안 (참고용, `.ts`) | 23개 / 237 시나리오 / 7,324+ lines |
 | tsc strict 통과 상태 | ✅ 23/23 clean |
+| D3 Gradle transitive (medipanda-api) | 직접 38 / 고유 transitive 397 / advisory **CRIT 2 · HIGH 5 · MED 8 · LOW 4** (deps.dev API) |
+| 운영 보조 스크립트 | 5종 (lint-harness, bridge-snapshot, gradle-dep-health, gradle-deps-transitive, notify-local) |
+| 알림 인프라 | `scripts/notify-local.sh` (osascript, 신규 회귀 ≥ 1 자동, §1 CRIT → 음성) |
 | CI 자기 검증 (`scripts/lint-harness.sh`) | ✅ frontmatter + 문서 drift + cross-ref + report presence |
 
 ---
@@ -165,6 +172,12 @@ A1·A2·D3 두 번째 실행마다 직전 대비 신규/해소/변경 카운트 
 ### 3.2 인프라
 
 - [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) — PR 체크리스트 (symlink/report/frontmatter)
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — push/PR 시 `lint-harness` + frontmatter 자동 검증
+- [`scripts/lint-harness.sh`](scripts/lint-harness.sh) — frontmatter 스키마 + 문서 drift + cross-ref + report presence 4-Job
+- [`scripts/bridge-snapshot.sh`](scripts/bridge-snapshot.sh) — B1 재실행 직전 `reports/bridge/` → `reports/bridge-snapshot-YYYYMMDD/` 보존 (회귀 베이스라인)
+- [`scripts/gradle-dep-health.sh`](scripts/gradle-dep-health.sh) — D3 Gradle 직접 의존성 정적 파싱
+- [`scripts/gradle-deps-transitive.sh`](scripts/gradle-deps-transitive.sh) — D3 deps.dev API transitive CVE (`|deep` 플래그)
+- [`scripts/notify-local.sh`](scripts/notify-local.sh) — macOS osascript 알림 + `reports/notifications.log` (`/regression-diff` 자동 호출, `NOTIFY_DISABLE=1` 묵음)
 
 ### 3.3 Playwright spec 초안 (참고, md 아님)
 
