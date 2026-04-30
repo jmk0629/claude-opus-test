@@ -156,7 +156,7 @@ commands/
 4. **Week 4 (백엔드 인수 시점)**: B1 `ingest-medipanda-backend` + B2 `playbook-status` — 인수 디데이에 맞춰.
 5. **그 이후**: C2, D1~D3는 수요 생기면.
 
-### 진행 상태 (2026-04-17 기준)
+### 진행 상태 (2026-04-30 기준)
 
 | 항목 | 상태 | PR | 리포트 |
 |------|------|----|-------|
@@ -176,7 +176,11 @@ commands/
 | 발견 사항 백로그 (수동) | ✅ main 직접 커밋 | — | `reports/findings-backlog-20260427.md` (23 bridge §5 + ingest §0 통합, 198건: P0 8 / P1 34 / P2 41 / P3 57+ / P4 3, 묶음 PR 4종 + Linear 라벨 가이드) |
 | B3 `/findings-backlog` (자동화) | ✅ main 직접 커밋 | — | `agents/findings-extractor.md` + `commands/findings-backlog.md` + `reports/findings-backlog-20260428-auto-validation.md` (수동 baseline 재현 +9건/4.5%, 횡단 7종 100% 일치, 메뉴 매핑 drift 1건 발견·수정) |
 | CI 통합 (lint-harness) | ✅ main 직접 커밋 | — | `scripts/lint-harness.sh` + `.github/workflows/ci.yml` lint-harness job (frontmatter / doc drift / cross-ref / report presence 4 job, 매 push/PR 자동) |
-| 회귀 베이스라인 비교 (`/regression-diff`) | ✅ main 직접 커밋 | — | `commands/regression-diff.md` (단일 커맨드, agent 없음, 결정적 bash 파싱). A1/A2/D3 N→N+1 신규/해소/유지 자동 카운트, LLM 미호출. 베이스라인 부재 시 안내 후 종료. 신규 command 확장은 `extract_<cmd>` 함수 + `case` 분기만 추가 |
+| 회귀 베이스라인 비교 (`/regression-diff`) | ✅ main 직접 커밋 | — | `commands/regression-diff.md` (단일 커맨드, agent 없음, 결정적 bash 파싱). 지원 7종: sync-api-docs / verify-frontend-contract / dep-health / dep-health-gradle-transitive / ui-smoke / ingest-medipanda-backend / bridge. N→N+1 신규/해소/유지 자동 카운트, LLM 미호출 |
+| B1 bridge §5 행 단위 회귀 | ✅ main 직접 커밋 | — | `scripts/bridge-snapshot.sh` (B1 재실행 직전 `reports/bridge/` 보존) + `/regression-diff bridge` (23 bridge × §5 R-items, permissive markdown 추출, LC_ALL=C 멀티바이트 안전) |
+| D3 Gradle 지원 (직접 의존성) | ✅ main 직접 커밋 | — | `scripts/gradle-dep-health.sh` (Version Catalog 정적 파싱, EOL 휴리스틱). `commands/dep-health.md` 빌드 도구 자동 감지로 npm/gradle 분기 |
+| D3 Gradle transitive CVE | ✅ main 직접 커밋 | — | `scripts/gradle-deps-transitive.sh` (deps.dev API, GHSA/CVE 매핑, CVSS 등급, 캐시 `reports/cache/deps.dev/`). `\|deep` 플래그. `reports/dep-health-gradle-transitive-20260429-medipanda-api.md` (직접 38 / transitive 397 / CRIT 2 · HIGH 5 · MED 8 · LOW 4 — Spring4Shell·Netty smuggling·SnakeYAML RCE 발견) |
+| 알림 인프라 (macOS 로컬) | ✅ main 직접 커밋 | — | `scripts/notify-local.sh` (osascript 알림센터 + `reports/notifications.log` + crit say 음성). `/regression-diff` Phase 3 끝 자동 호출: 신규 ≥ 1 → warn, §1 CRIT 신규 ≥ 1 → crit 격상. `NOTIFY_DISABLE=1` 야간 묵음 |
 
 ---
 
@@ -191,8 +195,8 @@ commands/
 
 ## 7. 열린 결정 사항 (사용자 확인 필요)
 
-1. **실행 위치**: 자동화를 medipanda-web 레포 안(`./.claude/`)에 둘지, claude-opus-test에 둘지?
-   - 권장: medipanda-web 레포 안 (팀이 공유 가능). claude-opus-test는 개인 실험실로 유지.
+1. ~~**실행 위치**: 자동화를 medipanda-web 레포 안(`./.claude/`)에 둘지, claude-opus-test에 둘지?~~
+   - **결정 (2026-04-30)**: claude-opus-test 단독. medipanda-* 외부 레포는 read-only(분석/참조만), 코드/워크플로우 추가 금지. claude-opus-test 측 CI(`.github/workflows/ci.yml`)는 자기 레포 lint-harness 만 검증.
 2. **훅 자동화 수준**: `pre-commit`/`post-generate-backend` 훅까지 깔지, `/명령어` 수동만 할지?
    - 권장: 초기엔 수동만. 안정화 후 훅으로 승격.
 3. **backend 인수 시점**: 실제 소스 받는 날짜가 픽스되면 B1 우선순위 상향.
