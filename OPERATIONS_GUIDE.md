@@ -50,6 +50,7 @@
 □ /verify-frontend-contract     ─ 베이스라인 회귀 0 유지
   └─ /regression-diff verify-frontend-contract  ─ 회귀 자동 감지
 □ /playbook-status              ─ 진행 정체 항목 식별
+  └─ /regression-diff playbook-status  ─ 18 항목 상태 변동 자동 카운트 (신규 0 = 정체)
 ```
 
 ### 2.3 스프린트 (팀, 격주 종료 시)

@@ -1,20 +1,20 @@
 ---
-description: A1/A2/D3/C2/B1 리포트 + B1 bridge 스냅샷 + D3 transitive CVE 의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
+description: A1/A2/D3/C2/B1/B2 리포트 + B1 bridge 스냅샷 + D3 transitive CVE 의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
 argument-hint: <command-name> [|prev_report] [|curr_report]
 ---
 
 # /regression-diff
 
-`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `dep-health-gradle-transitive` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
+`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `dep-health-gradle-transitive` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` / `playbook-status` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
 
-A1/A2/D3/C2/B1 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요.
+A1/A2/D3/C2/B1/B2 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요. `playbook-status` 는 **정체 감지** 용도 — 18 체크리스트 항목의 상태 변동 0 = 한 주 진척 없음 신호.
 
 `bridge` 는 ingest-medipanda-backend 와 다른 데이터 소스: `reports/bridge-snapshot-YYYYMMDD/` 디렉토리 2개를 비교하여 23 bridge × §5 R-items 의 신규/해소를 추적. 사전에 `bash scripts/bridge-snapshot.sh` 로 스냅샷 떠둬야 함.
 
 `dep-health-gradle-transitive` 는 D3 deep 모드(`scripts/gradle-deps-transitive.sh`) 산출물 비교 — transitive 의존성에 새 CRIT/HIGH CVE 가 등장하거나 해소된 경우 자동 카운트. 키: `CVE::module:version`.
 
 `$ARGUMENTS`:
-- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge}` (필수)
+- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge, playbook-status}` (필수)
 - 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke / bridge 는 무시 — 자동 picking)
 - 3rd (선택): `curr_report` 절대경로. 미지정 시 자동으로 가장 최신.
 
@@ -33,8 +33,8 @@ cd "$ROOT"
 export LC_ALL=C
 
 case "$CMD" in
-  sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge) ;;
-  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge"; exit 1 ;;
+  sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status) ;;
+  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status"; exit 1 ;;
 esac
 
 # 리포트 후보 — ui-smoke / bridge 는 별도 데이터 소스이므로 Phase 3 에서 직접 처리.
@@ -140,6 +140,28 @@ extract_d3_transitive() {
       gsub(/^[ \t]+/, "", cve); gsub(/[ \t]+$/, "", cve)
       gsub(/^[ \t]+/, "", mod); gsub(/[ \t]+$/, "", mod)
       if (cve != "" && mod != "") print cve "::" mod
+    }
+  ' "$file" | sort -u
+}
+```
+
+### playbook-status (B2)
+
+`reports/playbook-status-YYYYMMDD.md` 의 §섹션별 체크리스트 표 — `| ID | 항목 | 상태 | 증거 | 비고 |` 구조에서 ID + 상태(✅/⚠️/⬜/❓)를 키로 사용. 키: `ID::상태`.
+
+상태가 한 주만에 같으면 prev/curr 양쪽에 같은 키 → `유지`. 상태 바뀌면 prev 의 옛 키는 `해소`, curr 의 새 키는 `신규`. 따라서 신규 합계 = 그 주에 상태 변경된 항목 수, `유지` = 변동 없는 항목 수. **신규 0 = 정체** (한 주 진척 없음 신호).
+
+```bash
+extract_playbook() {
+  local file="$1"
+  awk '
+    /^\| (P[012]-[0-9]+) \|/ {
+      gsub(/^\| /, "")
+      gsub(/ \|$/, "")
+      n = split($0, a, " \\| ")
+      for (i=1; i<=n; i++) { gsub(/^[ \t]+/, "", a[i]); gsub(/[ \t]+$/, "", a[i]) }
+      # | ID | 항목 | 상태 | 증거 | 비고 | — a[1]=ID a[3]=상태
+      if (a[1] != "" && a[3] != "") print a[1] "::" a[3]
     }
   ' "$file" | sort -u
 }
@@ -368,6 +390,12 @@ OUT="reports/${CMD}-diff-${DATE}.md"
         diff_section "23 bridge §5 R-items (bridge::항목)" "$prev" "$curr"
         echo
       fi
+      ;;
+    playbook-status)
+      prev=$(extract_playbook "$PREV")
+      curr=$(extract_playbook "$CURR")
+      diff_section "B2 플레이북 18 항목 (ID::상태)" "$prev" "$curr"
+      echo
       ;;
     ingest-medipanda-backend)
       for sub in scale top; do
