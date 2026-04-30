@@ -72,6 +72,7 @@
   ├─ /regression-diff ingest-medipanda-backend  ─ §0 백엔드 규모 + 즉시 대응 Top N 자동 회귀
   └─ /regression-diff bridge                    ─ 23 bridge §5 R-items 행 단위 자동 회귀
 □ /findings-backlog                       ─ bridge 갱신본에서 신규/해소 자동 추출
+  └─ /regression-diff findings-backlog    ─ P0/P1 분기 대비 신규 자동 카운트 (P0 신규 → crit 음성, 외주사 즉시 통보 트리거)
 ```
 
 ### 2.5 외주 백엔드 인계 직후 (즉시)

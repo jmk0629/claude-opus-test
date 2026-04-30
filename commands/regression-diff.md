@@ -1,20 +1,20 @@
 ---
-description: A1/A2/D3/C2/B1/B2 리포트 + B1 bridge 스냅샷 + D3 transitive CVE 의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
+description: A1/A2/D3/C2/B1/B2/B3 리포트 + B1 bridge 스냅샷 + D3 transitive CVE 의 행 단위 diff (신규/해소/변경). 결정적 bash 파싱, LLM 미호출. 베이스라인 회귀 자동 감지.
 argument-hint: <command-name> [|prev_report] [|curr_report]
 ---
 
 # /regression-diff
 
-`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `dep-health-gradle-transitive` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` / `playbook-status` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
+`sync-api-docs` / `verify-frontend-contract` / `dep-health` / `dep-health-gradle-transitive` / `ui-smoke` / `ingest-medipanda-backend` / `bridge` / `playbook-status` / `findings-backlog` 의 N→N+1 행 단위 비교. **결정적 bash 파싱, LLM 미호출**.
 
-A1/A2/D3/C2/B1/B2 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요. `playbook-status` 는 **정체 감지** 용도 — 18 체크리스트 항목의 상태 변동 0 = 한 주 진척 없음 신호.
+A1/A2/D3/C2/B1/B2/B3 두 번째 실행마다 자동으로 직전 실행 대비 신규/해소/변경 카운트가 나오게 하는 게 목적. 매번 수동 비교 불필요. `playbook-status` 는 **정체 감지** (18 항목 상태 변동 0 = 한 주 진척 없음). `findings-backlog` 는 **P0/P1 SLA 추적** (P0 신규 = 외주사 즉시 통보 트리거, §1 자동 crit 격상).
 
 `bridge` 는 ingest-medipanda-backend 와 다른 데이터 소스: `reports/bridge-snapshot-YYYYMMDD/` 디렉토리 2개를 비교하여 23 bridge × §5 R-items 의 신규/해소를 추적. 사전에 `bash scripts/bridge-snapshot.sh` 로 스냅샷 떠둬야 함.
 
 `dep-health-gradle-transitive` 는 D3 deep 모드(`scripts/gradle-deps-transitive.sh`) 산출물 비교 — transitive 의존성에 새 CRIT/HIGH CVE 가 등장하거나 해소된 경우 자동 카운트. 키: `CVE::module:version`.
 
 `$ARGUMENTS`:
-- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge, playbook-status}` (필수)
+- 1st: `command-name` ∈ `{sync-api-docs, verify-frontend-contract, dep-health, dep-health-gradle-transitive, ui-smoke, ingest-medipanda-backend, bridge, playbook-status, findings-backlog}` (필수)
 - 2nd (선택): `prev_report` 절대경로. 미지정 시 자동으로 두 번째 최신. (ui-smoke / bridge 는 무시 — 자동 picking)
 - 3rd (선택): `curr_report` 절대경로. 미지정 시 자동으로 가장 최신.
 
@@ -33,14 +33,15 @@ cd "$ROOT"
 export LC_ALL=C
 
 case "$CMD" in
-  sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status) ;;
-  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status"; exit 1 ;;
+  sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status|findings-backlog) ;;
+  *) echo "❌ 지원 command: sync-api-docs|verify-frontend-contract|dep-health|dep-health-gradle-transitive|ui-smoke|ingest-medipanda-backend|bridge|playbook-status|findings-backlog"; exit 1 ;;
 esac
 
 # 리포트 후보 — ui-smoke / bridge 는 별도 데이터 소스이므로 Phase 3 에서 직접 처리.
 if [ "$CMD" != "ui-smoke" ] && [ "$CMD" != "bridge" ]; then
   # `-diff-` 접미사 (본 커맨드 출력) 는 후보에서 제외.
-  mapfile -t reports < <(ls -t reports/${CMD}-*.md 2>/dev/null | grep -v -- '-diff-')
+  # findings-backlog 는 `-auto-validation` 변종 (다른 포맷) 도 제외.
+  mapfile -t reports < <(ls -t reports/${CMD}-*.md 2>/dev/null | grep -v -- '-diff-' | grep -v -- '-auto-validation')
   if [ "${#reports[@]}" -lt 2 ]; then
     echo "ℹ️  ${CMD} 리포트가 ${#reports[@]}건 — 베이스라인 부재. 다음 실행 시 본 커맨드 호출하여 회귀 비교 시작."
     exit 0
@@ -140,6 +141,37 @@ extract_d3_transitive() {
       gsub(/^[ \t]+/, "", cve); gsub(/[ \t]+$/, "", cve)
       gsub(/^[ \t]+/, "", mod); gsub(/[ \t]+$/, "", mod)
       if (cve != "" && mod != "") print cve "::" mod
+    }
+  ' "$file" | sort -u
+}
+```
+
+### findings-backlog (B3)
+
+`reports/findings-backlog-YYYYMMDD.md` 의 §1 P0 + §2 P1 표 (`| ID | 메뉴 | 항목 | 근거 | 액션 |`) 를 우선순위별로 추출. ID 번호는 회차마다 재번호되지만 **항목 첫 80자** 가 안정 키. 키: `<P0|P1>::메뉴::항목 첫 80자`.
+
+§3 P2 부터는 ID 컬럼 부재 + 메뉴 그룹화 → 키 안정성 떨어져 **본 커맨드는 P0/P1 만 추적** (외주사 즉시 통보 + 이번 스프린트 actionable tier). P2/P3/P4 는 분기 1회 사람 검토.
+
+P0 신규 등장 시 출력 §1 라벨이 `### §1 P0` 으로 시작하므로 기존 `### §1` trigger 가 자동 crit 격상 (외주사 즉시 통보). dep-health §1 CRIT 와 동일 트리거 재사용.
+
+```bash
+extract_findings() {
+  local file="$1" priority="$2"  # priority ∈ P0|P1
+  awk -v pri="$priority" '
+    {
+      pat = "^\\| " pri "-[0-9]+ \\|"
+      if ($0 ~ pat) {
+        gsub(/^\| /, "")
+        gsub(/ \|$/, "")
+        n = split($0, a, " \\| ")
+        for (i=1; i<=n; i++) { gsub(/^[ \t]+/, "", a[i]); gsub(/[ \t]+$/, "", a[i]) }
+        # a[1]=ID(P0-N) a[2]=메뉴 a[3]=항목 a[4]=근거 a[5]=액션
+        menu = a[2]; item = a[3]
+        gsub(/`/, "", item)
+        gsub(/\*\*/, "", item)
+        if (length(item) > 80) item = substr(item, 1, 80)
+        if (item != "") print pri "::" menu "::" item
+      }
     }
   ' "$file" | sort -u
 }
@@ -396,6 +428,18 @@ OUT="reports/${CMD}-diff-${DATE}.md"
       curr=$(extract_playbook "$CURR")
       diff_section "B2 플레이북 18 항목 (ID::상태)" "$prev" "$curr"
       echo
+      ;;
+    findings-backlog)
+      for pri in P0 P1; do
+        case "$pri" in
+          P0) label="§1 P0 (메뉴::항목)" ;;
+          P1) label="§2 P1 (메뉴::항목)" ;;
+        esac
+        prev=$(extract_findings "$PREV" "$pri")
+        curr=$(extract_findings "$CURR" "$pri")
+        diff_section "$label" "$prev" "$curr"
+        echo
+      done
       ;;
     ingest-medipanda-backend)
       for sub in scale top; do
